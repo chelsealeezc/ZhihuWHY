@@ -44,7 +44,9 @@ export default function Landing() {
               </button>
             )}
             <p className="cta-note">
-              {user ? `已登录：${user.name}，可读取你的知乎收藏` : '登录后将读取你的知乎收藏，进入真实内容体验'}
+              {user
+                ? `已登录：${user.name}，可读取你的知乎收藏`
+                : '登录后将读取你的知乎收藏，进入真实内容体验'}
             </p>
             <Link className="btn btn-secondary" to={`/read/${sampleArticleId}`}>
               使用示例文章体验

@@ -4,11 +4,13 @@ import Topbar from '../components/Topbar'
 import { getArticle, getMoments } from '../data/mock'
 import { analyzeArticle, searchRelatedContent } from '../services/discussions'
 import { getImportedArticle } from '../services/importedArticles'
+import { saveDiscussionSpace } from '../services/discussionSpaces'
 import './Reading.css'
 
 function createLiveMoment(moment, fallbackMoment) {
   return {
     ...moment,
+    index: moment.index || fallbackMoment?.index || 1,
     relatedCount: 0,
     participants: '等待加入',
     related: [],
@@ -35,12 +37,14 @@ function mapRelatedItem(item, moment) {
   }
 }
 
-function openDiscussionSpace(momentId, selectedIds) {
+function openDiscussionSpace(moment, article, selectedIds, filter) {
+  saveDiscussionSpace(moment, article, selectedIds)
   const base = import.meta.env.BASE_URL.replace(/\/$/, '')
   const params = new URLSearchParams({
     choices: selectedIds.join(','),
   })
-  const url = `${window.location.origin}${base}/space/${momentId}?${params}`
+  if (filter) params.set('filter', filter)
+  const url = `${window.location.origin}${base}/space/${moment.id}?${params}`
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
@@ -141,7 +145,8 @@ export default function Reading() {
   }, [activeMoment, relatedState])
 
   function locateOriginal() {
-    const id = activeMoment.anchorParagraphId
+    const id = activeMoment.anchorParagraphId || fallbackMoments[activeMoment.index - 1]?.anchorParagraphId
+    if (!id) return
     setAnchorId(id)
     paragraphRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
@@ -162,7 +167,7 @@ export default function Reading() {
 
   const primaryChoice = selectedVotes[0]
   const primaryLabel = activeMoment.voteOptions.find((o) => o.id === primaryChoice)?.label
-  const primaryPct = activeMoment.voteResults[primaryChoice]
+  const primaryPct = activeMoment.voteResults[primaryChoice] || 0
 
   return (
     <div className="app-shell">
@@ -336,14 +341,22 @@ export default function Reading() {
                     <button
                       type="button"
                       className="btn btn-primary"
-                      onClick={() => openDiscussionSpace(activeMoment.id, selectedVotes)}
+                      onClick={() => openDiscussionSpace(activeMoment, article, selectedVotes)}
                     >
                       进入讨论空间（新标签页）
                     </button>
-                    <button type="button" className="btn btn-secondary">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => openDiscussionSpace(activeMoment, article, selectedVotes, 'same')}
+                    >
                       看看和我最像的人怎么说
                     </button>
-                    <button type="button" className="btn btn-secondary">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => openDiscussionSpace(activeMoment, article, selectedVotes, 'diff')}
+                    >
                       看看和我最不一样的人怎么说
                     </button>
                     <button

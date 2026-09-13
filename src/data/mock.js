@@ -1,4 +1,4 @@
-/** Mock data for ZhihuWHY framework — no real AI / OAuth this phase */
+/** Fallback demo data used when the AI, search, or OAuth services are unavailable. */
 
 export const product = {
   name: '知乎·讨论图谱',
@@ -74,31 +74,6 @@ export const mockFavorites = [
     voteup: 2103,
     comments: 198,
     favoritedAt: '2025-11-20',
-  },
-]
-
-export const mockLikes = [
-  {
-    id: 'l1',
-    type: 'answer',
-    question: '怎样克服拖延症？',
-    title: '拖延不是懒，是对失败的恐惧',
-    author: '阿北',
-    excerpt: '一旦允许自己交付「不完美的第一版」，拖延往往自己消退。',
-    voteup: 5600,
-    comments: 312,
-    favoritedAt: '2026-04-01',
-  },
-  {
-    id: 'l2',
-    type: 'article',
-    question: null,
-    title: '小胜累积：把目标做成可赢的游戏',
-    author: '禾木',
-    excerpt: '每天一个可完成的小胜利，比周末一次通宵更能重建自信。',
-    voteup: 980,
-    comments: 77,
-    favoritedAt: '2026-03-22',
   },
 ]
 

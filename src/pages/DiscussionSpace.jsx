@@ -1,23 +1,65 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import { getSpace } from '../data/mock'
+import { getSavedDiscussionSpace } from '../services/discussionSpaces'
 import './DiscussionSpace.css'
 
 export default function DiscussionSpace() {
   const { momentId } = useParams()
   const [searchParams] = useSearchParams()
-  const space = getSpace(momentId)
-  const choices = (searchParams.get('choices') || 'v1').split(',').filter(Boolean)
+  const space = useMemo(() => getSavedDiscussionSpace(momentId) || getSpace(momentId), [momentId])
+  const choices = (searchParams.get('choices') || space.selectedChoices?.join(',') || 'v1')
+    .split(',')
+    .filter(Boolean)
   const myChoice = choices[0]
 
-  const [feedFilter, setFeedFilter] = useState('all')
+  const [feedFilter, setFeedFilter] = useState(() => {
+    const initialFilter = searchParams.get('filter')
+    return initialFilter === 'same' || initialFilter === 'diff' ? initialFilter : 'all'
+  })
+  const [draft, setDraft] = useState('')
+  const [localPosts, setLocalPosts] = useState([])
+  const [composerMessage, setComposerMessage] = useState('')
+  const composerRef = useRef(null)
+
+  const allPosts = useMemo(() => [...localPosts, ...(space.posts || [])], [localPosts, space.posts])
 
   const posts = useMemo(() => {
-    if (feedFilter === 'same') return space.posts.filter((p) => p.stance === 'same')
-    if (feedFilter === 'diff') return space.posts.filter((p) => p.stance === 'diff')
-    return space.posts
-  }, [feedFilter, space.posts])
+    if (feedFilter === 'same') return allPosts.filter((p) => p.stance === 'same')
+    if (feedFilter === 'diff') return allPosts.filter((p) => p.stance === 'diff')
+    return allPosts
+  }, [allPosts, feedFilter])
+
+  function focusComposer(filter = 'all') {
+    setFeedFilter(filter)
+    composerRef.current?.focus()
+  }
+
+  function submitPost(event) {
+    event.preventDefault()
+    const text = draft.trim()
+    if (!text) {
+      setComposerMessage('先写下你的看法，再发送。')
+      composerRef.current?.focus()
+      return
+    }
+    setLocalPosts((current) => [
+      {
+        id: `local-${Date.now()}`,
+        user: '我',
+        from: '来自你的观点',
+        time: '刚刚',
+        stance: 'same',
+        stanceOptionId: myChoice,
+        text,
+        agree: 0,
+      },
+      ...current,
+    ])
+    setDraft('')
+    setComposerMessage('已加入本场讨论（仅保存在当前页面）。')
+  }
 
   return (
     <div className="app-shell">
@@ -29,6 +71,7 @@ export default function DiscussionSpace() {
             <div className="meta">
               来自 {space.sourceCount} 篇回答 / 文章 · {space.participants} 人参与
             </div>
+            {space.real && <div className="real-badge">已聚合知乎真实表达</div>}
           </div>
 
           <div className="card space-card">
@@ -79,7 +122,7 @@ export default function DiscussionSpace() {
               ))}
             </ul>
             <p className="muted" style={{ fontSize: 12, margin: '10px 0 0' }}>
-              「AI 主持」本期先不做，仅保留布局位。
+              观点分布与关系标签为演示数据；原文片段和来源来自知乎搜索结果。
             </p>
           </div>
         </aside>
@@ -90,12 +133,15 @@ export default function DiscussionSpace() {
               <h1>讨论空间</h1>
               <p>不同回答与文章里的观点，在这里相遇</p>
             </div>
-            <Link className="btn btn-secondary" to={`/read/a1`}>
+            <Link className="btn btn-secondary" to={`/read/${space.articleId || 'a1'}`}>
               返回阅读页
             </Link>
           </div>
 
           <div className="feed">
+            {posts.length === 0 && (
+              <div className="card empty-feed">这个筛选下暂时没有观点，换个筛选看看。</div>
+            )}
             {posts.map((post) => (
               <article key={post.id} className="card post-card">
                 <div className="post-head">
@@ -113,20 +159,39 @@ export default function DiscussionSpace() {
                 <p className="body">{post.text}</p>
                 <div className="post-actions">
                   <span>认同 {post.agree}</span>
-                  <span>追问</span>
-                  <span>回应</span>
+                  <button type="button" onClick={() => focusComposer(post.stance)}>
+                    追问
+                  </button>
+                  <button type="button" onClick={() => focusComposer('all')}>
+                    回应
+                  </button>
+                  {post.url && (
+                    <a href={post.url} target="_blank" rel="noreferrer">
+                      查看原文
+                    </a>
+                  )}
                 </div>
               </article>
             ))}
           </div>
 
-          <div className="composer">
+          <form className="composer" onSubmit={submitPost}>
             <div className="avatar sm">我</div>
-            <input placeholder="写下你的看法（演示占位，暂不提交）" />
-            <button type="button" className="btn btn-primary">
+            <input
+              ref={composerRef}
+              value={draft}
+              onChange={(event) => {
+                setDraft(event.target.value)
+                if (composerMessage) setComposerMessage('')
+              }}
+              placeholder="写下你的看法"
+              aria-label="写下你的看法"
+            />
+            <button type="submit" className="btn btn-primary">
               发送
             </button>
-          </div>
+          </form>
+          {composerMessage && <div className="composer-message">{composerMessage}</div>}
         </main>
 
         <aside className="space-col">
@@ -140,7 +205,11 @@ export default function DiscussionSpace() {
                     <div className="name">{person.name}</div>
                     <div className="snippet">{person.snippet}</div>
                   </div>
-                  <button type="button" className="btn btn-secondary">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => focusComposer(person.snippet.includes('分歧') ? 'diff' : 'same')}
+                  >
                     聊聊这个分歧
                   </button>
                 </div>
@@ -155,7 +224,13 @@ export default function DiscussionSpace() {
                 <div key={src.id} className="source-item">
                   <div className="avatar sm">文</div>
                   <div>
-                    <div className="title">{src.title}</div>
+                    {src.url ? (
+                      <a className="title" href={src.url} target="_blank" rel="noreferrer">
+                        {src.title}
+                      </a>
+                    ) : (
+                      <div className="title">{src.title}</div>
+                    )}
                     <div className="meta">
                       {src.author} · {src.voteup} 赞同 · {src.comments} 评论
                     </div>
