@@ -14,11 +14,11 @@ npm run dev
 | 路径 | 说明 |
 |------|------|
 | `/` | Intro 落地页 |
-| `/picker` | MOCK 收藏 / 点赞选择（知乎蓝 + 列表样式） |
+| `/picker` | MOCK 收藏选择（知乎蓝 + 列表；后续接真实收藏 API） |
 | `/read/:articleId` | 阅读页 + 右侧讨论瞬间 / 投票 |
 | `/space/:momentId` | 讨论空间（投票后 `window.open` 新标签页） |
 
-本期不接真实 AI / OAuth，数据均在 `src/data/mock.js`。
+本期阅读/讨论瞬间仍用 MOCK；登录与收藏将接入开放平台 OAuth（需小后端）。
 
 ## 构建
 
@@ -36,3 +36,14 @@ npm run preview
 源码只在 `main`。推送到 `main` 后，GitHub Actions 会自动构建并部署；**不需要**再维护 `gh-pages` 分支。
 
 Pages 设置里 Source 请选 **GitHub Actions**（不要选 Deploy from a branch）。
+
+## 后端部署（登录 / 收藏）
+
+真实知乎登录与收藏读取需要小后端（OAuth 换 Token、会话、调开放平台）。推荐：
+
+1. **Vercel（首选，免费额度够用）**：Serverless API Routes + 环境变量存 Secret；回调形如 `https://<project>.vercel.app/api/auth/callback`
+2. **备选**：Cloudflare Workers / Pages Functions；Sealos（赛事文档常提）
+
+前端可继续放 GitHub Pages，或前后端一起放 Vercel。密钥只进平台 Environment Variables，不进 Git。
+
+官方 Skill：`.codex/skills/zhihu`（`0.7.2-beta.20260911131715`）。

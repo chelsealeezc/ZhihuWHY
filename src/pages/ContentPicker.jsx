@@ -1,30 +1,83 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
-import { mockFavorites, mockLikes, sampleArticleId } from '../data/mock'
+import { mockFavorites, sampleArticleId } from '../data/mock'
+import { useAuth } from '../context/AuthContext'
 import './ContentPicker.css'
 
 const MAX_SELECT = 5
 
+function formatFavTime(ts) {
+  if (!ts) return ''
+  const d = new Date(ts * 1000)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function mapCollectionItem(item) {
+  return {
+    id: item.Url || item.Title,
+    type: item.ContentType || 'answer',
+    question: null,
+    title: item.Title || '(无标题)',
+    author: item.Author?.Name || '匿名用户',
+    excerpt: item.Summary || '',
+    voteup: Number(item.LikeCount) || 0,
+    comments: Number(item.CommentCount) || 0,
+    favoritedAt: formatFavTime(item.FavTime),
+  }
+}
+
 export default function ContentPicker() {
   const navigate = useNavigate()
-  const [tab, setTab] = useState('favorites')
+  const { user, login } = useAuth()
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(() => new Set())
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [fetchError, setFetchError] = useState(null)
 
-  const list = tab === 'favorites' ? mockFavorites : mockLikes
+  useEffect(() => {
+    if (!user) {
+      setItems(mockFavorites)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setFetchError(null)
+    fetch('/api/user/collections?limit=50', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return
+        if (data.ok && Array.isArray(data.items)) {
+          setItems(data.items.map(mapCollectionItem))
+        } else {
+          setFetchError(data?.error?.message || '获取收藏失败')
+          setItems(mockFavorites)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFetchError('网络错误，已回退到示例数据')
+          setItems(mockFavorites)
+        }
+      })
+      .finally(() => !cancelled && setLoading(false))
+    return () => {
+      cancelled = true
+    }
+  }, [user])
 
   const filtered = useMemo(() => {
     const q = query.trim()
-    if (!q) return list
-    return list.filter(
+    if (!q) return items
+    return items.filter(
       (item) =>
         item.title.includes(q) ||
         item.author.includes(q) ||
         (item.question && item.question.includes(q)) ||
         item.excerpt.includes(q),
     )
-  }, [list, query])
+  }, [query, items])
 
   function toggle(id) {
     setSelected((prev) => {
@@ -37,7 +90,6 @@ export default function ContentPicker() {
 
   function importSelected() {
     const first = [...selected][0] || sampleArticleId
-    // Framework: multi-select UI is ready; reading page currently opens one article.
     navigate(`/read/${first}`)
   }
 
@@ -47,30 +99,31 @@ export default function ContentPicker() {
       <main className="page picker-page">
         <div className="picker-header">
           <div>
-            <h1>从我的知乎内容开始</h1>
+            <h1>从我的知乎收藏开始</h1>
             <p className="muted" style={{ margin: 0 }}>
-              MOCK 账号 · 选择收藏或点赞中的内容导入演示
+              {user
+                ? loading
+                  ? '正在读取你的知乎收藏…'
+                  : `已加载 ${items.length} 条真实收藏`
+                : '登录知乎账号后可读取真实收藏；当前为示例数据'}
+              {fetchError ? `（${fetchError}）` : ''}
             </p>
           </div>
-          <Link className="btn btn-ghost" to={`/read/${sampleArticleId}`}>
-            改用示例文章
-          </Link>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {!user && (
+              <button type="button" className="btn btn-primary" onClick={login}>
+                登录知乎
+              </button>
+            )}
+            <Link className="btn btn-ghost" to={`/read/${sampleArticleId}`}>
+              改用示例文章
+            </Link>
+          </div>
         </div>
 
         <div className="picker-tabs">
-          <button
-            type="button"
-            className={tab === 'favorites' ? 'active' : ''}
-            onClick={() => setTab('favorites')}
-          >
-            我的收藏 · {mockFavorites.length}
-          </button>
-          <button
-            type="button"
-            className={tab === 'likes' ? 'active' : ''}
-            onClick={() => setTab('likes')}
-          >
-            我的点赞 · {mockLikes.length}
+          <button type="button" className="active">
+            我的收藏 · {items.length}
           </button>
         </div>
 
@@ -78,7 +131,7 @@ export default function ContentPicker() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索收藏 / 赞过的内容"
+            placeholder="搜索收藏的内容"
           />
           <button
             type="button"
@@ -93,32 +146,36 @@ export default function ContentPicker() {
         </div>
 
         <div className="picker-list">
-          {filtered.map((item) => {
-            const active = selected.has(item.id)
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={`picker-item${active ? ' selected' : ''}`}
-                onClick={() => toggle(item.id)}
-              >
-                <span className="picker-check">{active ? '✓' : ''}</span>
-                <div>
-                  <h3>{item.question || item.title}</h3>
-                  <div className="meta">
-                    {item.type === 'answer' ? '回答' : '文章'} · {item.author} · 收藏于{' '}
-                    {item.favoritedAt}
+          {loading ? (
+            <div className="muted" style={{ padding: 24, textAlign: 'center' }}>加载中…</div>
+          ) : (
+            filtered.map((item) => {
+              const active = selected.has(item.id)
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`picker-item${active ? ' selected' : ''}`}
+                  onClick={() => toggle(item.id)}
+                >
+                  <span className="picker-check">{active ? '✓' : ''}</span>
+                  <div>
+                    <h3>{item.question || item.title}</h3>
+                    <div className="meta">
+                      {item.type === 'answer' ? '回答' : item.type === 'article' ? '文章' : item.type} · {item.author}
+                      {item.favoritedAt ? ` · 收藏于 ${item.favoritedAt}` : ''}
+                    </div>
+                    <p className="excerpt">{item.excerpt}</p>
                   </div>
-                  <p className="excerpt">{item.excerpt}</p>
-                </div>
-                <div className="stats">
-                  {item.voteup} 赞同
-                  <br />
-                  {item.comments} 评论
-                </div>
-              </button>
-            )
-          })}
+                  <div className="stats">
+                    {item.voteup} 赞同
+                    <br />
+                    {item.comments} 评论
+                  </div>
+                </button>
+              )
+            })
+          )}
         </div>
       </main>
 

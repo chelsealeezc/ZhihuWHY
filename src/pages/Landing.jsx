@@ -1,9 +1,12 @@
 import { Link } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import { product, sampleArticleId } from '../data/mock'
+import { useAuth } from '../context/AuthContext'
 import './Landing.css'
 
 export default function Landing() {
+  const { user, login } = useAuth()
+
   return (
     <div className="app-shell">
       <Topbar compact />
@@ -31,10 +34,20 @@ export default function Landing() {
           </div>
 
           <div className="cta-stack">
-            <Link className="btn btn-primary" to="/picker">
-              连接我的知乎账号 →
-            </Link>
-            <p className="cta-note">演示阶段：跳转 MOCK 账号的收藏 / 点赞列表</p>
+            {user ? (
+              <Link className="btn btn-primary" to="/picker">
+                查看我的知乎收藏 →
+              </Link>
+            ) : (
+              <button type="button" className="btn btn-primary" onClick={login}>
+                连接我的知乎账号 →
+              </button>
+            )}
+            <p className="cta-note">
+              {user
+                ? `已登录：${user.name}，可读取你的知乎收藏`
+                : '登录后将读取你的知乎收藏，进入真实内容体验'}
+            </p>
             <Link className="btn btn-secondary" to={`/read/${sampleArticleId}`}>
               使用示例文章体验
             </Link>

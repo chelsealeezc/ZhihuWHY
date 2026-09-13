@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 export default function Topbar({ compact = false }) {
+  const { user, login, logout } = useAuth()
+
   return (
     <header className="topbar">
       <Link to="/" className="topbar-brand">
@@ -18,9 +21,23 @@ export default function Topbar({ compact = false }) {
       )}
       <div className="topbar-search">搜索问题、讨论瞬间…</div>
       <div className="topbar-actions">
-        <button type="button" className="btn btn-primary">
-          写回答
-        </button>
+        {user ? (
+          <div className="user-chip">
+            {user.avatar ? (
+              <img src={user.avatar} alt={user.name} className="user-avatar" />
+            ) : (
+              <span className="user-avatar-fallback">{(user.name || '?').slice(0, 1)}</span>
+            )}
+            <span className="user-name">{user.name}</span>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={logout}>
+              退出
+            </button>
+          </div>
+        ) : (
+          <button type="button" className="btn btn-primary" onClick={login}>
+            登录知乎
+          </button>
+        )}
       </div>
     </header>
   )
