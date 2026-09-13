@@ -104,7 +104,7 @@ export async function dispatch(route, request, response) {
     }
     return json(response, 404, { ok: false, error: { code: 'NOT_FOUND', message: '接口不存在' } })
   } catch (error) {
-    if (route === 'auth/callback') {
+    if (route === 'auth/callback' || route === 'auth/start') {
       return redirect(response, `/?login=error&code=${encodeURIComponent(error.code || 'OAUTH_FAILED')}`)
     }
     return json(response, error.status || (error.code === 'LOGIN_REQUIRED' ? 401 : 500), {

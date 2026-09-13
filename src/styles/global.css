@@ -177,6 +177,13 @@ img {
   white-space: nowrap;
 }
 
+.auth-error {
+  max-width: 260px;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .btn-sm {
   padding: 4px 10px;
   font-size: 12px;

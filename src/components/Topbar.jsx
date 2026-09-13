@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Topbar({ compact = false }) {
-  const { user, login, logout } = useAuth()
+  const { user, login, logout, loginError } = useAuth()
 
   return (
     <header className="topbar">
@@ -21,6 +21,7 @@ export default function Topbar({ compact = false }) {
       )}
       <div className="topbar-search">搜索问题、讨论瞬间…</div>
       <div className="topbar-actions">
+        {loginError && <span className="auth-error" role="alert">{loginError}</span>}
         {user ? (
           <div className="user-chip">
             {user.avatar ? (

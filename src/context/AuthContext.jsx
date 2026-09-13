@@ -2,6 +2,19 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 
 const AuthContext = createContext(null)
 
+const LOGIN_ERROR_MESSAGES = {
+  SERVER_CONFIG_MISSING: '登录服务尚未配置完整，请检查 Vercel 环境变量。',
+  STATE_EXPIRED: '登录等待时间过长，请重新连接知乎。',
+  STATE_MISMATCH: '登录状态校验失败，请重新连接知乎。',
+  CODE_MISSING: '知乎没有返回授权结果，请重新连接知乎。',
+  TOKEN_EXCHANGE_FAILED: '知乎授权失败，请确认 OAuth 回调地址配置正确。',
+  OAUTH_FAILED: '知乎登录失败，请稍后重试。',
+}
+
+function readableLoginError(code, fallback) {
+  return LOGIN_ERROR_MESSAGES[code] || fallback || '知乎登录失败，请稍后重试。'
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -11,6 +24,9 @@ export function AuthProvider({ children }) {
     try {
       const res = await fetch('/api/auth/status', { credentials: 'include' })
       const data = await res.json()
+      if (!res.ok || data?.ok === false) {
+        setLoginError(readableLoginError(data?.error?.code, data?.error?.message))
+      }
       if (data.authorized && data.profile) {
         setUser(data.profile)
       } else {
@@ -30,11 +46,12 @@ export function AuthProvider({ children }) {
     // 检查 URL 上的登录结果提示
     const params = new URLSearchParams(window.location.search)
     if (params.get('login') === 'error') {
-      setLoginError(params.get('code') || '登录失败，请重试')
+      setLoginError(readableLoginError(params.get('code')))
     }
   }, [refreshStatus])
 
   const login = useCallback(() => {
+    setLoginError(null)
     window.location.href = '/api/auth/start'
   }, [])
 
