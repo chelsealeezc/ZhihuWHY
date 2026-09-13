@@ -1,40 +1,14 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { oauthConfig } from './config.mjs'
+import { clearSession, readSession, writeSession } from './session.mjs'
 
-const sessions = new Map()
-const SESSION_COOKIE = 'zhihuwhy_session'
-const SESSION_MAX_AGE = 8 * 60 * 60 // 8 小时
-
-function sessionId(request) {
-  const cookie = request.headers.cookie || ''
-  const match = cookie
-    .split(';')
-    .map((s) => s.trim())
-    .find((s) => s.startsWith(SESSION_COOKIE + '='))
-  return match ? decodeURIComponent(match.slice(SESSION_COOKIE.length + 1)) : null
-}
-
-function getSession(request, response) {
-  let id = sessionId(request)
-  let session = id ? sessions.get(id) : null
-  if (!session) {
-    id = randomBytes(24).toString('base64url')
-    session = {
-      id,
-      state: null,
-      stateExpiresAt: 0,
-      token: null,
-      expiresAt: null,
-      profile: null,
-      error: null,
-    }
-    sessions.set(id, session)
-    response.setHeader(
-      'Set-Cookie',
-      `${SESSION_COOKIE}=${id}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_MAX_AGE}`,
-    )
+function requireConfig(entries) {
+  const missing = entries.filter(([, value]) => !value).map(([name]) => name)
+  if (missing.length > 0) {
+    throw Object.assign(new Error(`服务端缺少环境变量：${missing.join(', ')}`), {
+      code: 'SERVER_CONFIG_MISSING',
+    })
   }
-  return session
 }
 
 function safeEqual(a, b) {
@@ -52,10 +26,15 @@ function buildRedirectUri(request) {
 
 // 发起授权：生成 state 并返回知乎授权页 URL
 export function startAuth(request, response) {
-  const session = getSession(request, response)
+  requireConfig([
+    ['ZHIHU_OAUTH_APP_ID', oauthConfig.appId],
+    ['ZHIHU_OAUTH_APP_KEY', oauthConfig.appKey],
+  ])
+  const session = readSession(request)
   session.state = randomBytes(24).toString('base64url')
   session.stateExpiresAt = Date.now() + 10 * 60 * 1000 // 10 分钟有效
   session.error = null
+  writeSession(request, response, session)
 
   const params = new URLSearchParams({
     redirect_uri: buildRedirectUri(request),
@@ -68,7 +47,7 @@ export function startAuth(request, response) {
 
 // 处理回调：校验 state → 换 token → 拉用户信息
 export async function handleCallback(request, response, url) {
-  const session = getSession(request, response)
+  const session = readSession(request)
   const code = url.searchParams.get('authorization_code') || url.searchParams.get('code')
   const returnedState = url.searchParams.get('state')
 
@@ -78,9 +57,14 @@ export async function handleCallback(request, response, url) {
   if (!session.state || Date.now() > session.stateExpiresAt) {
     throw Object.assign(new Error('state 已过期，请重新登录'), { code: 'STATE_EXPIRED' })
   }
-  if (returnedState && !safeEqual(returnedState, session.state)) {
+  if (!returnedState || !safeEqual(returnedState, session.state)) {
     throw Object.assign(new Error('state 校验失败'), { code: 'STATE_MISMATCH' })
   }
+
+  // 校验成功后立即消费，防止同一回调重复使用。
+  session.state = null
+  session.stateExpiresAt = 0
+  writeSession(request, response, session)
 
   // 交换 access_token
   const form = new URLSearchParams({
@@ -106,8 +90,6 @@ export async function handleCallback(request, response, url) {
   const expiresIn = Number(tokenData?.expires_in ?? tokenData?.data?.expires_in ?? tokenData?.Data?.expires_in)
   session.token = accessToken
   session.expiresAt = Number.isFinite(expiresIn) ? Date.now() + expiresIn * 1000 : null
-  session.state = null
-  session.stateExpiresAt = 0
   session.error = null
 
   // 拉取用户基础信息
@@ -130,15 +112,17 @@ export async function handleCallback(request, response, url) {
   } catch {
     session.profile = null
   }
+  writeSession(request, response, session)
 }
 
 // 返回当前登录状态
 export function getAuthStatus(request, response) {
-  const session = getSession(request, response)
+  const session = readSession(request)
   if (session.expiresAt && session.expiresAt <= Date.now()) {
     session.token = null
     session.profile = null
     session.error = { code: 'TOKEN_EXPIRED', message: '授权已过期，请重新登录' }
+    writeSession(request, response, session)
   }
   return {
     authorized: Boolean(session.token),
@@ -149,18 +133,13 @@ export function getAuthStatus(request, response) {
 }
 
 export function logout(request, response) {
-  const session = getSession(request, response)
-  session.token = null
-  session.expiresAt = null
-  session.profile = null
-  session.state = null
-  session.stateExpiresAt = 0
-  session.error = null
+  clearSession(request, response)
 }
 
 // 读取当前授权用户的近期收藏
 export async function getCollections(request, response, limit = 20) {
-  const session = getSession(request, response)
+  requireConfig([['ZHIHU_ACCESS_SECRET', oauthConfig.accessSecret]])
+  const session = readSession(request)
   if (!session.token) {
     throw Object.assign(new Error('请先完成知乎账号授权'), { code: 'LOGIN_REQUIRED' })
   }
@@ -182,7 +161,8 @@ export async function getCollections(request, response, limit = 20) {
 
 // 读取授权用户的创作内容
 export async function getContents(request, response, type = 'all', limit = 20) {
-  const session = getSession(request, response)
+  requireConfig([['ZHIHU_ACCESS_SECRET', oauthConfig.accessSecret]])
+  const session = readSession(request)
   if (!session.token) {
     throw Object.assign(new Error('请先完成知乎账号授权'), { code: 'LOGIN_REQUIRED' })
   }

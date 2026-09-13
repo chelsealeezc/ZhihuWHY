@@ -9,6 +9,19 @@ npm install
 npm run dev
 ```
 
+需要联调知乎登录或收藏时，先复制 `.env.example` 为 `.env`，填写赛事页面分配的配置；真实凭证只能保存在本地 `.env` 或部署平台 Secret 中，不能提交到 Git。
+
+```bash
+cp .env.example .env
+```
+
+不登录也可调用的核心服务端接口：
+
+- `POST /api/discussions/analyze`：输入文章标题与段落，通过配置的模型生成 3～6 个讨论瞬间。
+- `GET /api/zhihu/search?query=...&count=10`：使用开放平台 Access Secret 搜索知乎真实内容。
+
+AI Key 和知乎 Access Secret 都只配置在服务端；前端不得使用 `VITE_` 前缀暴露这些变量。
+
 ## 页面与路由
 
 | 路径 | 说明 |
@@ -36,6 +49,16 @@ npm run preview
 源码只在 `main`。推送到 `main` 后，GitHub Actions 会自动构建并部署；**不需要**再维护 `gh-pages` 分支。
 
 Pages 设置里 Source 请选 **GitHub Actions**（不要选 Deploy from a branch）。
+
+## Vercel 完整 Demo
+
+Vercel 同时部署 Vite 前端与根目录 `api/` 下的 Functions。导入 GitHub 仓库后，在 Vercel 项目设置中配置 `.env.example` 列出的服务端环境变量；`SESSION_SECRET` 至少使用 32 个随机字符。生产 OAuth 回调地址为：
+
+```text
+https://<你的-vercel-域名>/api/auth/callback
+```
+
+GitHub Pages 继续作为 Mock UI 预览；其 workflow 会单独设置 `/ZhihuWHY/` 基础路径，不影响 Vercel 根路径部署。
 
 ## 后端部署（登录 / 收藏）
 

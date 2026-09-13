@@ -12,6 +12,8 @@ import {
   getCollections,
   getContents,
 } from './oauth.mjs'
+import { analyzeArticle } from './ai.mjs'
+import { searchZhihu } from './zhihu.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const distDir = path.resolve(__dirname, '..', 'dist')
@@ -36,6 +38,30 @@ function json(res, status, payload) {
 function redirect(res, location) {
   res.writeHead(302, { Location: location, 'Cache-Control': 'no-store' })
   res.end()
+}
+
+async function readJson(req) {
+  const chunks = []
+  let size = 0
+  for await (const chunk of req) {
+    size += chunk.length
+    if (size > 1024 * 1024) {
+      throw Object.assign(new Error('请求内容不能超过 1 MB'), {
+        code: 'PAYLOAD_TOO_LARGE',
+        status: 413,
+      })
+    }
+    chunks.push(chunk)
+  }
+  if (chunks.length === 0) return {}
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  } catch {
+    throw Object.assign(new Error('请求 JSON 格式无效'), {
+      code: 'INVALID_JSON',
+      status: 400,
+    })
+  }
 }
 
 async function serveStatic(res, urlPath) {
@@ -103,6 +129,35 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, { ok: true, items })
       } catch (e) {
         return json(res, 401, { ok: false, error: { code: e.code, message: e.message } })
+      }
+    }
+
+    // ---- AI 讨论分析 / 知乎公共内容 ----
+    if (p === '/api/discussions/analyze' && req.method === 'POST') {
+      try {
+        const body = await readJson(req)
+        const moments = await analyzeArticle(body.article)
+        return json(res, 200, { ok: true, moments })
+      } catch (e) {
+        return json(res, e.status || 500, {
+          ok: false,
+          error: { code: e.code || 'ANALYZE_FAILED', message: e.message },
+        })
+      }
+    }
+
+    if (p === '/api/zhihu/search' && req.method === 'GET') {
+      try {
+        const result = await searchZhihu(
+          url.searchParams.get('query'),
+          url.searchParams.get('count'),
+        )
+        return json(res, 200, { ok: true, ...result })
+      } catch (e) {
+        return json(res, e.status || 500, {
+          ok: false,
+          error: { code: e.code || 'SEARCH_FAILED', message: e.message },
+        })
       }
     }
 
