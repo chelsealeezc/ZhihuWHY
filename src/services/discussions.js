@@ -1,5 +1,31 @@
 const analysisRequests = new Map()
 const searchRequests = new Map()
+const ANALYSIS_CACHE_PREFIX = 'zhihuwhy:analysis:v1:'
+const ANALYSIS_CACHE_TTL = 24 * 60 * 60 * 1000
+
+function getCachedAnalysis(key) {
+  try {
+    const cached = JSON.parse(localStorage.getItem(`${ANALYSIS_CACHE_PREFIX}${key}`))
+    if (cached?.createdAt > Date.now() - ANALYSIS_CACHE_TTL && Array.isArray(cached.moments)) {
+      return cached.moments
+    }
+    localStorage.removeItem(`${ANALYSIS_CACHE_PREFIX}${key}`)
+  } catch {
+    // Storage may be blocked; live analysis still works without persistence.
+  }
+  return null
+}
+
+function cacheAnalysis(key, moments) {
+  try {
+    localStorage.setItem(
+      `${ANALYSIS_CACHE_PREFIX}${key}`,
+      JSON.stringify({ createdAt: Date.now(), moments }),
+    )
+  } catch {
+    // Ignore storage quota/privacy-mode failures.
+  }
+}
 
 async function readApiResponse(response) {
   const data = await response.json().catch(() => null)
@@ -13,6 +39,8 @@ async function readApiResponse(response) {
 
 export function analyzeArticle(article) {
   const key = article.id || article.question || article.title
+  const cached = getCachedAnalysis(key)
+  if (cached) return Promise.resolve(cached)
   if (!analysisRequests.has(key)) {
     const request = fetch('/api/discussions/analyze', {
       method: 'POST',
@@ -26,7 +54,10 @@ export function analyzeArticle(article) {
       }),
     })
       .then(readApiResponse)
-      .then((data) => data.moments)
+      .then((data) => {
+        cacheAnalysis(key, data.moments)
+        return data.moments
+      })
       .catch((error) => {
         analysisRequests.delete(key)
         throw error

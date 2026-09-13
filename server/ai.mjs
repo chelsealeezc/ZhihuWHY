@@ -1,5 +1,7 @@
 import { aiConfig } from './config.mjs'
 
+const AI_TIMEOUT_MS = 30_000
+
 function requireAiConfig() {
   if (!aiConfig.apiKey) {
     throw Object.assign(new Error('服务端缺少环境变量：OPENAI_NEXT_API_KEY'), {
@@ -74,18 +76,33 @@ export async function analyzeArticle(article) {
     .join('\n')
   const prompt = `你是知乎社区讨论策展助手。分析下面的文章，找出 3～6 个可以跨内容继续讨论的“讨论瞬间”。\n\n要求：\n1. 每个瞬间必须有明确分歧、选择或普适问题。\n2. searchQuery 要适合用于知乎站内搜索，简洁且包含核心概念。\n3. voteOptions 必须是 3～4 个互斥、可理解的中文观点，只返回字符串数组。\n4. anchorParagraphId 必须来自段落方括号中的 ID。\n5. 只输出 JSON，不要 Markdown。\n\nJSON 结构：\n{"moments":[{"title":"短标题","coreQuestion":"讨论问题","summary":"为什么值得讨论","searchQuery":"知乎搜索词","anchorParagraphId":"p1","voteOptions":["观点一","观点二","观点三"]}]}\n\n文章标题：${article.title}\n作者：${article.author || '未知'}\n正文：\n${paragraphText}`
 
-  const response = await fetch(`${aiConfig.baseUrl}/responses`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${aiConfig.apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: aiConfig.model,
-      input: prompt,
-      reasoning: { effort: 'high' },
-    }),
-  })
+  let response
+  try {
+    response = await fetch(`${aiConfig.baseUrl}/responses`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${aiConfig.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: aiConfig.model,
+        input: prompt,
+        reasoning: { effort: 'low' },
+      }),
+      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+    })
+  } catch (error) {
+    if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+      throw Object.assign(new Error('AI 分析超过 30 秒，已切换为示例讨论瞬间'), {
+        code: 'AI_TIMEOUT',
+        status: 504,
+      })
+    }
+    throw Object.assign(new Error('AI 服务暂时无法连接'), {
+      code: 'AI_REQUEST_FAILED',
+      status: 502,
+    })
+  }
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
     throw Object.assign(new Error(payload?.error?.message || `AI 请求失败（HTTP ${response.status}）`), {
