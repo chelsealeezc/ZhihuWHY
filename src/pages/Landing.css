@@ -1,0 +1,133 @@
+.landing {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 40px;
+  align-items: start;
+  padding-top: 36px;
+}
+
+.landing-kicker {
+  color: var(--zh-blue);
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.landing h1 {
+  margin: 0 0 16px;
+  font-size: clamp(28px, 4vw, 40px);
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.landing h1 em {
+  font-style: normal;
+  color: var(--zh-blue);
+}
+
+.landing-desc {
+  color: var(--text-secondary);
+  font-size: 15px;
+  margin: 0 0 28px;
+  max-width: 42em;
+}
+
+.feature-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.feature-card {
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+}
+
+.feature-card strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.feature-card p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.cta-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.cta-note {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: -4px;
+}
+
+.preview-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.preview-answer,
+.preview-graph {
+  padding: 18px;
+}
+
+.preview-answer .q {
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.preview-answer .hl {
+  background: var(--zh-blue-soft);
+  color: var(--zh-blue);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.preview-graph h3 {
+  margin: 0 0 14px;
+  font-size: 15px;
+}
+
+.graph-nodes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.graph-node {
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--zh-blue-softer);
+  border: 1px solid #d6e6ff;
+  font-size: 13px;
+}
+
+.graph-node span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .landing {
+    grid-template-columns: 1fr;
+  }
+  .feature-row {
+    grid-template-columns: 1fr;
+  }
+}

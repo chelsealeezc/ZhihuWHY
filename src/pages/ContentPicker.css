@@ -1,0 +1,145 @@
+.picker-page {
+  width: min(860px, calc(100% - 32px));
+}
+
+.picker-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.picker-header h1 {
+  margin: 0 0 6px;
+  font-size: 24px;
+}
+
+.picker-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.picker-tabs button {
+  border: 0;
+  background: transparent;
+  padding: 10px 14px;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.picker-tabs button.active {
+  color: var(--zh-blue);
+  border-bottom-color: var(--zh-blue);
+  font-weight: 600;
+}
+
+.picker-toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.picker-toolbar input {
+  flex: 1;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  padding: 0 12px;
+  background: var(--bg-white);
+}
+
+.picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 72px;
+}
+
+.picker-item {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  text-align: left;
+  width: 100%;
+  background: var(--bg-white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.picker-item:hover,
+.picker-item.selected {
+  border-color: #9ec5ff;
+  background: var(--zh-blue-softer);
+}
+
+.picker-check {
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  display: grid;
+  place-items: center;
+}
+
+.picker-item.selected .picker-check {
+  border-color: var(--zh-blue);
+  background: var(--zh-blue);
+  color: #fff;
+  font-size: 11px;
+}
+
+.picker-item h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.picker-item .meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.picker-item .excerpt {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.picker-item .stats {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.picker-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.picker-footer .actions {
+  display: flex;
+  gap: 8px;
+}
