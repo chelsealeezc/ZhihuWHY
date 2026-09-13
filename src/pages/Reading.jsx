@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import { getArticle, getMoments } from '../data/mock'
 import { analyzeArticle, searchRelatedContent } from '../services/discussions'
+import { getImportedArticle } from '../services/importedArticles'
 import './Reading.css'
 
 function createLiveMoment(moment, fallbackMoment) {
@@ -45,7 +46,7 @@ function openDiscussionSpace(momentId, selectedIds) {
 
 export default function Reading() {
   const { articleId } = useParams()
-  const article = getArticle(articleId)
+  const article = useMemo(() => getImportedArticle(articleId) || getArticle(articleId), [articleId])
   const fallbackMoments = useMemo(() => getMoments(article.id), [article.id])
 
   const [loading, setLoading] = useState(true)
@@ -174,7 +175,8 @@ export default function Reading() {
             <div>
               <div className="name">{article.author.name}</div>
               <div className="bio">
-                {article.author.bio} · {article.author.followers} 关注
+                {article.author.bio}
+                {article.author.followers ? ` · ${article.author.followers} 关注` : ''}
               </div>
             </div>
             <button type="button" className="btn btn-secondary" style={{ marginLeft: 'auto' }}>
@@ -202,6 +204,11 @@ export default function Reading() {
             <span>💬 {article.comments} 条评论</span>
             <span>收藏</span>
             <span>分享</span>
+            {article.sourceUrl && (
+              <a href={article.sourceUrl} target="_blank" rel="noreferrer">
+                查看知乎原文
+              </a>
+            )}
             <Link to="/picker" style={{ marginLeft: 'auto', fontSize: 13 }}>
               换一篇内容
             </Link>

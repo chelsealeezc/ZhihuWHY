@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import { mockFavorites, sampleArticleId } from '../data/mock'
 import { useAuth } from '../context/AuthContext'
+import { saveImportedArticles } from '../services/importedArticles'
 import './ContentPicker.css'
 
 const MAX_SELECT = 5
@@ -16,6 +17,7 @@ function formatFavTime(ts) {
 function mapCollectionItem(item) {
   return {
     id: item.Url || item.Title,
+    url: item.Url || '',
     type: item.ContentType || 'answer',
     question: null,
     title: item.Title || '(无标题)',
@@ -89,8 +91,9 @@ export default function ContentPicker() {
   }
 
   function importSelected() {
-    const first = [...selected][0] || sampleArticleId
-    navigate(`/read/${first}`)
+    const selectedItems = items.filter((item) => selected.has(item.id))
+    const [first] = saveImportedArticles(selectedItems)
+    navigate(`/read/${first?.id || sampleArticleId}`)
   }
 
   return (
