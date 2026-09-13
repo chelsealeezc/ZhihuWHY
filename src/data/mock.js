@@ -1,4 +1,4 @@
-/** Mock data for ZhihuWHY framework — no real AI / OAuth this phase */
+/** Fallback demo data used when the AI, search, or OAuth services are unavailable. */
 
 export const product = {
   name: '知乎·讨论图谱',

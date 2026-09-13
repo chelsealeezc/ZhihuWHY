@@ -2,7 +2,37 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import { getArticle, getMoments } from '../data/mock'
+import { analyzeArticle, searchRelatedContent } from '../services/discussions'
 import './Reading.css'
+
+function createLiveMoment(moment, fallbackMoment) {
+  return {
+    ...moment,
+    relatedCount: 0,
+    participants: '等待加入',
+    related: [],
+    voteResults: fallbackMoment?.voteResults || { v1: 36, v2: 24, v3: 22, v4: 18 },
+    closestQuote: fallbackMoment?.closestQuote || {
+      text: '投票后，这里会展示与你观点最接近的知乎真实表达。',
+      author: '观点引力场',
+      source: '相关讨论',
+      voteup: 0,
+    },
+    source: 'ai',
+  }
+}
+
+function mapRelatedItem(item, moment) {
+  return {
+    id: item.id || item.url,
+    title: item.title || '知乎内容',
+    author: item.author,
+    voteup: item.voteup,
+    quote: item.quote,
+    url: item.url,
+    why: `围绕「${moment.searchQuery}」提供了相关观点或真实经历。`,
+  }
+}
 
 function openDiscussionSpace(momentId, selectedIds) {
   const base = import.meta.env.BASE_URL.replace(/\/$/, '')
@@ -16,10 +46,14 @@ function openDiscussionSpace(momentId, selectedIds) {
 export default function Reading() {
   const { articleId } = useParams()
   const article = getArticle(articleId)
-  const moments = getMoments(article.id)
+  const fallbackMoments = useMemo(() => getMoments(article.id), [article.id])
 
   const [loading, setLoading] = useState(true)
-  const [activeMomentId, setActiveMomentId] = useState(moments[0]?.id)
+  const [moments, setMoments] = useState(fallbackMoments)
+  const [analysisMode, setAnalysisMode] = useState('loading')
+  const [analysisMessage, setAnalysisMessage] = useState('')
+  const [relatedState, setRelatedState] = useState({})
+  const [activeMomentId, setActiveMomentId] = useState(fallbackMoments[0]?.id)
   const [selectedVotes, setSelectedVotes] = useState([])
   const [submitted, setSubmitted] = useState(false)
   const [anchorId, setAnchorId] = useState(null)
@@ -34,14 +68,76 @@ export default function Reading() {
     setLoading(true)
     setSubmitted(false)
     setSelectedVotes([])
-    const t = setTimeout(() => setLoading(false), 900)
-    return () => clearTimeout(t)
-  }, [article.id])
+    setMoments(fallbackMoments)
+    setActiveMomentId(fallbackMoments[0]?.id)
+    setAnalysisMode('loading')
+    setAnalysisMessage('')
+    setRelatedState({})
+    let cancelled = false
+
+    analyzeArticle(article)
+      .then((generated) => {
+        if (cancelled) return
+        const liveMoments = generated.map((moment, index) =>
+          createLiveMoment(moment, fallbackMoments[index]),
+        )
+        setMoments(liveMoments)
+        setActiveMomentId(liveMoments[0]?.id)
+        setAnalysisMode('live')
+      })
+      .catch((error) => {
+        if (cancelled) return
+        setAnalysisMode('fallback')
+        setAnalysisMessage(error.message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [article, fallbackMoments])
 
   useEffect(() => {
     setSubmitted(false)
     setSelectedVotes([])
   }, [activeMomentId])
+
+  useEffect(() => {
+    if (!activeMoment?.searchQuery || relatedState[activeMoment.id]) return
+    const momentId = activeMoment.id
+    setRelatedState((current) => ({ ...current, [momentId]: { status: 'loading' } }))
+    searchRelatedContent(activeMoment.searchQuery, 4)
+      .then((items) => {
+        setMoments((current) =>
+          current.map((moment) =>
+            moment.id === momentId
+              ? {
+                  ...moment,
+                  related: items.slice(0, 4).map((item) => mapRelatedItem(item, moment)),
+                  relatedCount: items.length,
+                  closestQuote: items[0]
+                    ? {
+                        text: items[0].quote || items[0].title,
+                        author: items[0].author,
+                        source: `《${items[0].title}》`,
+                        voteup: items[0].voteup,
+                      }
+                    : moment.closestQuote,
+                }
+              : moment,
+          ),
+        )
+        setRelatedState((current) => ({ ...current, [momentId]: { status: 'ready' } }))
+      })
+      .catch((error) => {
+        setRelatedState((current) => ({
+          ...current,
+          [momentId]: { status: 'error', message: error.message },
+        }))
+      })
+  }, [activeMoment, relatedState])
 
   function locateOriginal() {
     const id = activeMoment.anchorParagraphId
@@ -118,7 +214,11 @@ export default function Reading() {
             <span className="beta">Beta</span>
           </div>
           <p className="pane-sub">
-            演示数据：基于全文预置 {moments.length} 个最值得深入讨论的主题（本期不接 AI）
+            {analysisMode === 'live'
+              ? `AI 已从全文识别 ${moments.length} 个值得深入讨论的主题`
+              : analysisMode === 'fallback'
+                ? `当前展示 ${moments.length} 个示例主题 · ${analysisMessage}`
+                : 'AI 正在阅读全文并识别讨论瞬间…'}
           </p>
 
           {loading ? (
@@ -158,12 +258,27 @@ export default function Reading() {
               </div>
 
               <div className="related-list">
+                {relatedState[activeMoment.id]?.status === 'loading' && (
+                  <div className="related-status">正在从知乎检索相关真实表达…</div>
+                )}
+                {relatedState[activeMoment.id]?.status === 'error' && (
+                  <div className="related-status error">
+                    真实内容暂未加载：{relatedState[activeMoment.id].message}
+                  </div>
+                )}
                 {activeMoment.related.map((item) => (
                   <div key={item.id} className="related-item">
-                    <div className="title">{item.title}</div>
+                    {item.url ? (
+                      <a className="title" href={item.url} target="_blank" rel="noreferrer">
+                        {item.title}
+                      </a>
+                    ) : (
+                      <div className="title">{item.title}</div>
+                    )}
                     <div className="meta">
                       {item.author} · {item.voteup} 赞同
                     </div>
+                    {item.quote && <div className="quote">“{item.quote}”</div>}
                     <div className="why">为什么相关：{item.why}</div>
                   </div>
                 ))}

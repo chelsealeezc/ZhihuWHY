@@ -171,6 +171,7 @@
 }
 
 .related-item .title {
+  display: block;
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 4px;
@@ -185,6 +186,31 @@
 .related-item .why {
   margin-top: 6px;
   color: var(--text-secondary);
+}
+
+.related-item .quote {
+  margin-top: 7px;
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.related-status {
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--zh-blue-softer);
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.related-status.error {
+  background: #fff7ed;
+  color: #9a5a12;
 }
 
 .vote-block h4 {
