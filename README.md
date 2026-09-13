@@ -28,3 +28,21 @@ npm run preview
 ```
 
 生产环境 `base` 为 `/ZhihuWHY/`，适配 GitHub Pages 项目站点。
+
+## 在线预览（GitHub Pages / github.io）
+
+队友可直接打开（开启 Pages 后生效）：
+
+**https://chelsealeezc.github.io/ZhihuWHY/**
+
+### 什么是 github.io？
+
+GitHub Pages 会把仓库里的静态网站托管到 `https://<用户名>.github.io/<仓库名>/`。  
+本仓库已配置：每次推送 `main` 会构建并发布到 `gh-pages` 分支。
+
+### 首次需要仓库管理员点一次（约 30 秒）
+
+1. 打开 [Pages 设置](https://github.com/chelsealeezc/ZhihuWHY/settings/pages)
+2. **Build and deployment → Source** 选 **Deploy from a branch**
+3. Branch 选 **`gh-pages`** / **`/ (root)`** → Save
+4. 等 1～2 分钟，刷新上面的链接即可
