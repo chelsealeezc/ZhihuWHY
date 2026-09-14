@@ -24,7 +24,15 @@ export function saveDiscussionSpace(moment, article, selectedChoices) {
     user: item.author || '知乎用户',
     from: '来自知乎相关内容',
     time: '已聚合',
-    stance: index % 3 === 1 ? 'diff' : 'same',
+    stance: item.stance === 'diff' || item.stance === 'different'
+      ? 'diff'
+      : item.stance === 'same'
+        ? 'same'
+        : item.stance === 'neutral'
+          ? 'neutral'
+          : index % 3 === 1
+            ? 'diff'
+            : 'same',
     stanceOptionId: options[index % Math.max(options.length, 1)]?.id,
     text: item.quote || item.title,
     agree: Number(item.voteup) || 0,
@@ -43,12 +51,21 @@ export function saveDiscussionSpace(moment, article, selectedChoices) {
       { id: 'real', label: '真实表达', count: posts.length },
       { id: 'same', label: '相近观点', count: posts.filter((post) => post.stance === 'same').length },
       { id: 'diff', label: '不同观点', count: posts.filter((post) => post.stance === 'diff').length },
+      { id: 'neutral', label: '立场不明', count: posts.filter((post) => post.stance === 'neutral').length },
     ],
     posts,
     worthChat: related.slice(0, 3).map((item, index) => ({
       id: `chat-${item.id || index}`,
       name: item.author || '知乎用户',
-      snippet: index % 3 === 1 ? '相关表达 · 与你可能存在分歧' : '相关表达 · 与你的选择可能相近',
+      snippet: item.stance === 'diff' || item.stance === 'different'
+        ? '相关表达 · 与你存在分歧'
+        : item.stance === 'same'
+          ? '相关表达 · 与你的选择相近'
+          : item.stance === 'neutral'
+            ? '相关表达 · 立场尚不明确'
+            : index % 3 === 1
+              ? '相关表达 · 与你可能存在分歧'
+              : '相关表达 · 与你的选择可能相近',
       evidence: [item.quote || item.title, item.why].filter(Boolean),
     })),
     sources: [

@@ -54,7 +54,7 @@ export default function DiscussionSpace() {
 
   const [feedFilter, setFeedFilter] = useState(() => {
     const initialFilter = searchParams.get('filter')
-    return initialFilter === 'same' || initialFilter === 'diff' ? initialFilter : 'all'
+    return ['same', 'diff', 'neutral'].includes(initialFilter) ? initialFilter : 'all'
   })
   const [draft, setDraft] = useState('')
   const [localPosts, setLocalPosts] = useState([])
@@ -71,6 +71,7 @@ export default function DiscussionSpace() {
   const posts = useMemo(() => {
     if (feedFilter === 'same') return allPosts.filter((p) => p.stance === 'same')
     if (feedFilter === 'diff') return allPosts.filter((p) => p.stance === 'diff')
+    if (feedFilter === 'neutral') return allPosts.filter((p) => p.stance === 'neutral')
     return allPosts
   }, [allPosts, feedFilter])
 
@@ -197,6 +198,7 @@ export default function DiscussionSpace() {
                 ['all', '全部'],
                 ['same', '和我相近'],
                 ['diff', '和我不同'],
+                ['neutral', '立场不明'],
               ].map(([id, label]) => (
                 <button
                   key={id}
@@ -217,7 +219,7 @@ export default function DiscussionSpace() {
               ))}
             </ul>
             <p className="muted" style={{ fontSize: 12, margin: '10px 0 0' }}>
-              观点分布与关系标签为演示数据；原文片段和来源来自知乎搜索结果。
+              个性化结果的关系标签由 AI 根据摘要判断；主题推荐回退数据仍使用演示关系。
             </p>
           </div>
         </aside>
@@ -248,7 +250,11 @@ export default function DiscussionSpace() {
                     </div>
                   </div>
                   <span className={`stance-tag ${post.stance}`}>
-                    {post.stance === 'same' ? '同观点' : '不同观点'}
+                    {post.stance === 'same'
+                      ? '同观点'
+                      : post.stance === 'diff'
+                        ? '不同观点'
+                        : '立场不明'}
                   </span>
                 </div>
                 <p className="body">{post.text}</p>

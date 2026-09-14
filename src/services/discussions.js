@@ -81,3 +81,19 @@ export function searchRelatedContent(query, count = 4) {
   }
   return searchRequests.get(key)
 }
+
+export async function recommendRelatedContent(moment, selectedOpinions) {
+  const response = await fetch('/api/discussions/recommend', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      moment: {
+        coreQuestion: moment.coreQuestion,
+        searchQuery: moment.searchQuery,
+      },
+      selectedOpinions,
+    }),
+  })
+  const data = await readApiResponse(response)
+  return data.groups
+}

@@ -6,7 +6,7 @@ import {
   logout,
   startAuth,
 } from '../server/oauth.mjs'
-import { analyzeArticle, chatWithPersona } from '../server/ai.mjs'
+import { analyzeArticle, chatWithPersona, classifyRelatedContent } from '../server/ai.mjs'
 import { searchZhihu } from '../server/zhihu.mjs'
 
 function json(response, status, payload) {
@@ -102,6 +102,19 @@ export async function dispatch(route, request, response) {
       const body = await readJson(request)
       const reply = await chatWithPersona(body)
       return json(response, 200, { ok: true, reply })
+    }
+    if (route === 'discussions/recommend') {
+      if (request.method !== 'POST') return methodNotAllowed(response, 'POST')
+      const body = await readJson(request)
+      if (!body.moment?.coreQuestion || !Array.isArray(body.selectedOpinions) || body.selectedOpinions.length === 0) {
+        throw Object.assign(new Error('讨论问题和用户选择均不能为空'), {
+          code: 'RECOMMENDATION_INPUT_REQUIRED',
+          status: 400,
+        })
+      }
+      const search = await searchZhihu(body.moment?.searchQuery, 10)
+      const groups = await classifyRelatedContent(body.moment, body.selectedOpinions, search.items)
+      return json(response, 200, { ok: true, groups, searchHashId: search.searchHashId })
     }
     if (route === 'zhihu/search') {
       if (request.method !== 'GET') return methodNotAllowed(response, 'GET')

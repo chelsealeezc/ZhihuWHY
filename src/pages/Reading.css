@@ -274,6 +274,73 @@
   margin-bottom: 6px;
 }
 
+.recommendation-status {
+  margin-top: 12px;
+  padding: 14px 12px;
+  border-radius: 8px;
+  background: var(--zh-blue-softer);
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.recommendation-status.error {
+  background: #fff7ed;
+  color: #9a5a12;
+}
+
+.recommendation-results {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.recommendation-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 3px solid var(--border);
+}
+
+.recommendation-group.same {
+  border-top-color: #22a06b;
+}
+
+.recommendation-group.different {
+  border-top-color: #e36b4f;
+}
+
+.recommendation-group.neutral {
+  border-top-color: #98a2b3;
+}
+
+.recommendation-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.recommendation-heading h4 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.recommendation-heading span,
+.recommendation-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.recommendation-empty {
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--bg);
+  text-align: center;
+}
+
 .quote-card {
   margin-top: 12px;
   padding: 12px;

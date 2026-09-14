@@ -2,7 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import { getArticle, getMoments } from '../data/mock'
-import { analyzeArticle, searchRelatedContent } from '../services/discussions'
+import {
+  analyzeArticle,
+  recommendRelatedContent,
+  searchRelatedContent,
+} from '../services/discussions'
 import { getImportedArticle } from '../services/importedArticles'
 import { saveDiscussionSpace } from '../services/discussionSpaces'
 import './Reading.css'
@@ -33,8 +37,43 @@ function mapRelatedItem(item, moment) {
     voteup: item.voteup,
     quote: item.quote,
     url: item.url,
-    why: `围绕「${moment.searchQuery}」提供了相关观点或真实经历。`,
+    comments: item.comments,
+    stance: item.stance === 'different' ? 'diff' : item.stance,
+    relevanceScore: item.relevanceScore,
+    why: item.reason || `围绕「${moment.searchQuery}」提供了相关观点或真实经历。`,
   }
+}
+
+function RecommendationGroup({ title, tone, items }) {
+  return (
+    <section className={`recommendation-group ${tone}`}>
+      <div className="recommendation-heading">
+        <h4>{title}</h4>
+        <span>{items.length} 篇</span>
+      </div>
+      {items.length === 0 ? (
+        <div className="recommendation-empty">暂时没有足够明确的内容</div>
+      ) : (
+        items.slice(0, 4).map((item) => (
+          <div key={`${tone}-${item.id}`} className="related-item">
+            {item.url ? (
+              <a className="title" href={item.url} target="_blank" rel="noreferrer">
+                {item.title}
+              </a>
+            ) : (
+              <div className="title">{item.title}</div>
+            )}
+            <div className="meta">
+              {item.author} · {item.voteup} 赞同
+              {item.relevanceScore ? ` · ${item.relevanceScore}% 相关` : ''}
+            </div>
+            {item.quote && <div className="quote">“{item.quote}”</div>}
+            <div className="why">分类依据：{item.why}</div>
+          </div>
+        ))
+      )}
+    </section>
+  )
 }
 
 function openDiscussionSpace(moment, article, selectedIds, filter) {
@@ -61,6 +100,7 @@ export default function Reading() {
   const [activeMomentId, setActiveMomentId] = useState(fallbackMoments[0]?.id)
   const [selectedVotes, setSelectedVotes] = useState([])
   const [submitted, setSubmitted] = useState(false)
+  const [recommendationState, setRecommendationState] = useState({})
   const [anchorId, setAnchorId] = useState(null)
   const paragraphRefs = useRef({})
 
@@ -78,6 +118,7 @@ export default function Reading() {
     setAnalysisMode('loading')
     setAnalysisMessage('')
     setRelatedState({})
+    setRecommendationState({})
     let cancelled = false
 
     analyzeArticle(article)
@@ -160,14 +201,66 @@ export default function Reading() {
     })
   }
 
-  function submitVote() {
+  async function submitVote() {
     if (selectedVotes.length === 0) return
+    const moment = activeMoment
+    const momentId = moment.id
+    const selectedOpinions = selectedVotes
+      .map((id) => moment.voteOptions.find((option) => option.id === id)?.label)
+      .filter(Boolean)
     setSubmitted(true)
+    setRecommendationState((current) => ({
+      ...current,
+      [momentId]: { status: 'loading', groups: null },
+    }))
+    try {
+      const groups = await recommendRelatedContent(moment, selectedOpinions)
+      const mappedGroups = Object.fromEntries(
+        Object.entries(groups).map(([stance, items]) => [
+          stance,
+          items.map((item) => mapRelatedItem(item, moment)),
+        ]),
+      )
+      const personalized = [
+        ...(mappedGroups.same || []),
+        ...(mappedGroups.different || []),
+        ...(mappedGroups.neutral || []),
+      ]
+      setMoments((current) =>
+        current.map((item) =>
+          item.id === momentId
+            ? {
+                ...item,
+                related: personalized,
+                relatedCount: personalized.length,
+                closestQuote: mappedGroups.same?.[0]
+                  ? {
+                      text: mappedGroups.same[0].quote || mappedGroups.same[0].title,
+                      author: mappedGroups.same[0].author,
+                      source: `《${mappedGroups.same[0].title}》`,
+                      voteup: mappedGroups.same[0].voteup,
+                    }
+                  : item.closestQuote,
+              }
+            : item,
+        ),
+      )
+      setRecommendationState((current) => ({
+        ...current,
+        [momentId]: { status: 'ready', groups: mappedGroups },
+      }))
+    } catch (error) {
+      setRecommendationState((current) => ({
+        ...current,
+        [momentId]: { status: 'error', message: error.message },
+      }))
+    }
   }
 
   const primaryChoice = selectedVotes[0]
   const primaryLabel = activeMoment.voteOptions.find((o) => o.id === primaryChoice)?.label
   const primaryPct = activeMoment.voteResults[primaryChoice] || 0
+  const activeRecommendation = recommendationState[activeMoment.id]
 
   return (
     <div className="app-shell">
@@ -271,7 +364,7 @@ export default function Reading() {
                 </button>
               </div>
 
-              <div className="related-list">
+              {!submitted && <div className="related-list">
                 {relatedState[activeMoment.id]?.status === 'loading' && (
                   <div className="related-status">正在从知乎检索相关真实表达…</div>
                 )}
@@ -296,7 +389,7 @@ export default function Reading() {
                     <div className="why">为什么相关：{item.why}</div>
                   </div>
                 ))}
-              </div>
+              </div>}
 
               {!submitted ? (
                 <div className="vote-block">
@@ -330,19 +423,44 @@ export default function Reading() {
                     {primaryPct}% 的参与者和你选择相近
                   </div>
 
-                  <div className="quote-card">
-                    <div>和你最接近的真实表达</div>
-                    <p style={{ margin: '8px 0' }}>“{activeMoment.closestQuote.text}”</p>
-                    <div className="who">
-                      @{activeMoment.closestQuote.author} · 来自{activeMoment.closestQuote.source} ·{' '}
-                      {activeMoment.closestQuote.voteup} 赞同
+                  {activeRecommendation?.status === 'loading' && (
+                    <div className="recommendation-status">
+                      正在根据你的选择判断相近与不同观点…
                     </div>
-                  </div>
+                  )}
+                  {activeRecommendation?.status === 'error' && (
+                    <div className="recommendation-status error">
+                      个性化推荐暂未加载，进入讨论空间时将使用原有主题推荐：
+                      {activeRecommendation.message}
+                    </div>
+                  )}
+                  {activeRecommendation?.status === 'ready' && (
+                    <div className="recommendation-results">
+                      <RecommendationGroup
+                        title="和你相近的观点"
+                        tone="same"
+                        items={activeRecommendation.groups.same || []}
+                      />
+                      <RecommendationGroup
+                        title="与你不同的观点"
+                        tone="different"
+                        items={activeRecommendation.groups.different || []}
+                      />
+                      {(activeRecommendation.groups.neutral || []).length > 0 && (
+                        <RecommendationGroup
+                          title="相关但立场尚不明确"
+                          tone="neutral"
+                          items={activeRecommendation.groups.neutral}
+                        />
+                      )}
+                    </div>
+                  )}
 
                   <div className="result-links">
                     <button
                       type="button"
                       className="btn btn-primary"
+                      disabled={activeRecommendation?.status === 'loading'}
                       onClick={() => openDiscussionSpace(activeMoment, article, selectedVotes)}
                     >
                       进入讨论空间（新标签页）
@@ -350,6 +468,7 @@ export default function Reading() {
                     <button
                       type="button"
                       className="btn btn-secondary"
+                      disabled={activeRecommendation?.status === 'loading'}
                       onClick={() => openDiscussionSpace(activeMoment, article, selectedVotes, 'same')}
                     >
                       看看和我最像的人怎么说
@@ -357,6 +476,7 @@ export default function Reading() {
                     <button
                       type="button"
                       className="btn btn-secondary"
+                      disabled={activeRecommendation?.status === 'loading'}
                       onClick={() => openDiscussionSpace(activeMoment, article, selectedVotes, 'diff')}
                     >
                       看看和我最不一样的人怎么说

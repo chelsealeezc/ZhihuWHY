@@ -12,7 +12,7 @@ import {
   getCollections,
   getContents,
 } from './oauth.mjs'
-import { analyzeArticle, chatWithPersona } from './ai.mjs'
+import { analyzeArticle, chatWithPersona, classifyRelatedContent } from './ai.mjs'
 import { searchZhihu } from './zhihu.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -155,6 +155,26 @@ const server = http.createServer(async (req, res) => {
         return json(res, e.status || 500, {
           ok: false,
           error: { code: e.code || 'PERSONA_CHAT_FAILED', message: e.message },
+        })
+      }
+    }
+
+    if (p === '/api/discussions/recommend' && req.method === 'POST') {
+      try {
+        const body = await readJson(req)
+        if (!body.moment?.coreQuestion || !Array.isArray(body.selectedOpinions) || body.selectedOpinions.length === 0) {
+          throw Object.assign(new Error('讨论问题和用户选择均不能为空'), {
+            code: 'RECOMMENDATION_INPUT_REQUIRED',
+            status: 400,
+          })
+        }
+        const search = await searchZhihu(body.moment?.searchQuery, 10)
+        const groups = await classifyRelatedContent(body.moment, body.selectedOpinions, search.items)
+        return json(res, 200, { ok: true, groups, searchHashId: search.searchHashId })
+      } catch (e) {
+        return json(res, e.status || 500, {
+          ok: false,
+          error: { code: e.code || 'RECOMMEND_FAILED', message: e.message },
         })
       }
     }
