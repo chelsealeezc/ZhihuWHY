@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import { demoArticleCards, mockFavorites, sampleArticleId } from '../data/mock'
 import { useAuth } from '../context/AuthContext'
@@ -62,10 +62,12 @@ function mapSearchItem(item) {
 
 export default function ContentPicker() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { user, login } = useAuth()
   const [mode, setMode] = useState('demo')
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(() => searchParams.get('query') || '')
   const [selected, setSelected] = useState(() => new Set())
+  const [selectionNotice, setSelectionNotice] = useState('')
   const [items, setItems] = useState([])
   const [contentItems, setContentItems] = useState([])
   const [loading, setLoading] = useState(false)
@@ -141,10 +143,15 @@ export default function ContentPicker() {
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id))
 
   function toggle(id) {
+    if (!selected.has(id) && selected.size >= MAX_SELECT) {
+      setSelectionNotice(`最多选择 ${MAX_SELECT} 篇`)
+      return
+    }
+    setSelectionNotice('')
     setSelected((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
-      else if (next.size < MAX_SELECT) next.add(id)
+      else next.add(id)
       return next
     })
   }
@@ -186,28 +193,27 @@ export default function ContentPicker() {
       <Topbar />
       <main className="page picker-page">
         <div className="picker-header">
-          <div>
-            <h1>{mode === 'demo' ? '内置示例长文' : mode === 'search' ? '探索知乎真实内容' : mode === 'contents' ? '从我的知乎创作开始' : '从我的知乎收藏开始'}</h1>
-            <p className="muted" style={{ margin: 0 }}>
+          <div className="picker-heading">
+            <h1>{mode === 'demo' ? '内置示例长文' : mode === 'search' ? '找到一篇，开始读' : mode === 'contents' ? '从我的创作开始' : '从你的收藏开始'}</h1>
+            <p>{mode === 'demo' ? '无需登录即可体验的两篇完整知乎长文。' : mode === 'search' ? '搜索一个问题，挑一篇进入阅读。' : '选择 1–5 篇内容，进入阅读与讨论。'}</p>
+            <span className="picker-status">
               {mode === 'demo'
-                ? '无需登录即可体验的两篇完整知乎长文'
+                ? `${demoArticleCards.length} 篇内置长文`
                 : mode === 'search'
                 ? searchLoading
-                  ? '正在搜索知乎公开内容…'
-                  : `已找到 ${searchResults.length} 条真实内容`
-                : mode === 'contents' && user
-                ? loading
-                  ? '正在读取你的知乎创作…'
-                  : `已加载 ${contentItems.length} 条真实创作`
+                  ? '正在搜索…'
+                  : searchResults.length
+                    ? `${searchResults.length} 条结果`
+                    : '等待搜索'
                 : user
-                ? loading
-                  ? '正在读取你的知乎收藏…'
-                  : `已加载 ${items.length} 条真实收藏`
-                : '登录知乎账号后可读取真实收藏；当前展示收藏夹示例数据'}
-              {fetchError ? `（${fetchError}）` : ''}
-            </p>
+                  ? loading
+                    ? '正在读取收藏…'
+                    : `${items.length} 篇收藏`
+                  : '当前展示示例收藏'}
+              {fetchError ? ` · ${fetchError}` : ''}
+            </span>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="picker-header-actions">
             {!user && (
               <button type="button" className="btn btn-primary" onClick={login}>
                 登录知乎
@@ -219,143 +225,161 @@ export default function ContentPicker() {
           </div>
         </div>
 
-        <div className="picker-tabs">
-          <button
-            type="button"
-            className={mode === 'demo' ? 'active' : ''}
-            onClick={() => {
-              setMode('demo')
-              setSelected(new Set())
-              setSearchError(null)
-            }}
-          >
-            示例长文 · {demoArticleCards.length}
-          </button>
-          <button
-            type="button"
-            className={mode === 'collections' ? 'active' : ''}
-            onClick={() => {
-              setMode('collections')
-              setSelected(new Set())
-              setSearchError(null)
-            }}
-          >
-            我的收藏 · {user ? items.length : '登录后读取'}
-          </button>
-          <button
-            type="button"
-            className={mode === 'contents' ? 'active' : ''}
-            onClick={() => {
-              setMode('contents')
-              setSelected(new Set())
-              setSearchError(null)
-            }}
-          >
-            我的创作 · {user ? contentItems.length : '登录后读取'}
-          </button>
-          <button
-            type="button"
-            className={mode === 'search' ? 'active' : ''}
-            onClick={() => {
-              setMode('search')
-              setSelected(new Set())
-              setSearchError(null)
-            }}
-          >
-            探索知乎 · {searchResults.length || '实时'}
-          </button>
-        </div>
-
-        <form className="picker-toolbar" onSubmit={mode === 'search' ? searchPublicContent : (event) => event.preventDefault()}>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={mode === 'search' ? '搜索知乎公开内容，例如：执行力' : mode === 'demo' ? '搜索示例文章' : '搜索收藏的内容'}
-          />
-          {mode === 'search' && (
-            <button type="submit" className="btn btn-primary" disabled={searchLoading}>
-              {searchLoading ? '搜索中…' : '搜索知乎'}
+        <section className="picker-workspace card">
+          <div className="picker-tabs" role="tablist" aria-label="内容来源">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'demo'}
+              className={mode === 'demo' ? 'active' : ''}
+              onClick={() => {
+                setMode('demo')
+                setSelected(new Set())
+                setSelectionNotice('')
+                setSearchError(null)
+              }}
+            >
+              示例长文 <span>{demoArticleCards.length}</span>
             </button>
-          )}
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => {
-              setSelected((current) => {
-                const next = new Set(current)
-                if (allVisibleSelected) {
-                  visibleIds.forEach((id) => next.delete(id))
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'collections'}
+              className={mode === 'collections' ? 'active' : ''}
+              onClick={() => {
+                setMode('collections')
+                setSelected(new Set())
+                setSelectionNotice('')
+                setSearchError(null)
+              }}
+            >
+              我的收藏 <span>{items.length}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'contents'}
+              className={mode === 'contents' ? 'active' : ''}
+              onClick={() => {
+                setMode('contents')
+                setSelected(new Set())
+                setSelectionNotice('')
+                setSearchError(null)
+              }}
+            >
+              我的创作 <span>{user ? contentItems.length : '登录后读取'}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'search'}
+              className={mode === 'search' ? 'active' : ''}
+              onClick={() => {
+                setMode('search')
+                setSelected(new Set())
+                setSelectionNotice('')
+                setSearchError(null)
+              }}
+            >
+              探索知乎 <span>{searchResults.length || '实时'}</span>
+            </button>
+          </div>
+
+          <form className="picker-toolbar" onSubmit={mode === 'search' ? searchPublicContent : (event) => event.preventDefault()}>
+            <label className="picker-search-field">
+              <span className="search-icon" aria-hidden="true" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={mode === 'search' ? '搜索问题，例如：执行力' : mode === 'demo' ? '搜索示例文章' : mode === 'contents' ? '在创作中筛选' : '在收藏中筛选'}
+                aria-label={mode === 'search' ? '搜索知乎公开内容' : '筛选收藏内容'}
+              />
+            </label>
+            {mode === 'search' && (
+              <button type="submit" className="btn btn-primary" disabled={searchLoading}>
+                {searchLoading ? '搜索中…' : '搜索'}
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                setSelectionNotice('')
+                setSelected((current) => {
+                  const next = new Set(current)
+                  if (allVisibleSelected) {
+                    visibleIds.forEach((id) => next.delete(id))
+                    return next
+                  }
+                  const available = Math.max(0, MAX_SELECT - next.size)
+                  filtered
+                    .filter((item) => !next.has(item.id))
+                    .slice(0, available)
+                    .forEach((item) => next.add(item.id))
                   return next
-                }
-                const available = Math.max(0, MAX_SELECT - next.size)
-                filtered
-                  .filter((item) => !next.has(item.id))
-                  .slice(0, available)
-                  .forEach((item) => next.add(item.id))
-                return next
-              })
-            }}
-          >
-            {allVisibleSelected ? '取消全选' : '全选'}
-          </button>
-        </form>
+                })
+              }}
+            >
+              {allVisibleSelected ? '取消选择' : '选择当前'}
+            </button>
+          </form>
 
-        {mode === 'search' && searchError && (
-          <div className="picker-error" role="alert">真实内容暂未加载：{searchError}</div>
-        )}
+          {selectionNotice && <div className="picker-limit" role="status">{selectionNotice}</div>}
+          {mode === 'search' && searchError && (
+            <div className="picker-error" role="alert">无法加载结果：{searchError}</div>
+          )}
 
-        <div className="picker-list">
-          {((mode === 'collections' || mode === 'contents') && loading) || (mode === 'search' && searchLoading) ? (
-            <div className="muted" style={{ padding: 24, textAlign: 'center' }}>加载中…</div>
-          ) : (
-            filtered.map((item) => {
-              const active = selected.has(item.id)
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`picker-item${active ? ' selected' : ''}`}
-                  onClick={() => toggle(item.id)}
-                >
-                  <span className="picker-check">{active ? '✓' : ''}</span>
-                  <div>
-                    <h3>{item.question || item.title}</h3>
-                    <div className="meta">
-                      {item.type === 'answer' ? '回答' : item.type === 'article' ? '文章' : item.type} · {item.author}
-                      {item.favoritedAt ? ` · 收藏于 ${item.favoritedAt}` : ''}
+          <div className="picker-list">
+            {((mode === 'collections' || mode === 'contents') && loading) || (mode === 'search' && searchLoading) ? (
+              <div className="picker-empty">正在加载内容…</div>
+            ) : (
+              filtered.map((item) => {
+                const active = selected.has(item.id)
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    aria-pressed={active}
+                    className={`picker-item${active ? ' selected' : ''}`}
+                    onClick={() => toggle(item.id)}
+                  >
+                    <span className="picker-check" aria-hidden="true">{active ? '✓' : ''}</span>
+                    <div>
+                      <h3>{item.question || item.title}</h3>
+                      <div className="meta">
+                        {item.type === 'answer' ? '回答' : item.type === 'article' ? '文章' : item.type} · {item.author}
+                        {item.favoritedAt ? ` · 收藏于 ${item.favoritedAt}` : ''}
+                      </div>
+                      <p className="excerpt">{item.excerpt}</p>
                     </div>
-                    <p className="excerpt">{item.excerpt}</p>
-                  </div>
-                  <div className="stats">
-                    {item.voteup} 赞同
-                    <br />
-                    {item.comments} 评论
-                  </div>
-                </button>
-              )
-            })
-          )}
-          {mode === 'search' && !searchLoading && searchResults.length === 0 && !searchError && (
-            <div className="muted" style={{ padding: 24, textAlign: 'center' }}>
-              输入关键词，搜索知乎公开内容
-            </div>
-          )}
-          {mode === 'collections' && !loading && filtered.length === 0 && (
-            <div className="muted" style={{ padding: 24, textAlign: 'center' }}>
-              没有找到匹配的收藏内容
-            </div>
-          )}
-          {mode === 'contents' && !loading && filtered.length === 0 && (
-            <div className="muted" style={{ padding: 24, textAlign: 'center' }}>
-              没有找到匹配的创作内容
-            </div>
-          )}
-        </div>
+                    <div className="stats">
+                      {item.voteup} 赞同
+                      <br />
+                      {item.comments} 评论
+                    </div>
+                  </button>
+                )
+              })
+            )}
+            {mode === 'search' && !searchLoading && searchResults.length === 0 && !searchError && (
+              <div className="picker-empty">输入关键词，搜索知乎公开内容</div>
+            )}
+            {mode === 'collections' && !loading && filtered.length === 0 && (
+              <div className="picker-empty">没有找到匹配的收藏内容</div>
+            )}
+            {mode === 'contents' && !loading && filtered.length === 0 && (
+              <div className="picker-empty">没有找到匹配的创作内容</div>
+            )}
+            {mode === 'demo' && filtered.length === 0 && (
+              <div className="picker-empty">没有找到匹配的示例长文</div>
+            )}
+          </div>
+        </section>
       </main>
 
       <footer className="picker-footer">
         <span className="muted">
-          已选中 {selected.size}/{MAX_SELECT} 篇
+          <strong>{selected.size}</strong> / {MAX_SELECT} 篇已选择
         </span>
         <div className="actions">
           <Link className="btn btn-secondary" to="/">

@@ -206,7 +206,7 @@ const server = http.createServer(async (req, res) => {
 })
 
 server.listen(serverPort, '0.0.0.0', () => {
-  process.stdout.write(`ZhihuWHY 服务已启动: http://localhost:${serverPort}/\n`)
+  process.stdout.write(`Echo in Zhihu 服务已启动: http://localhost:${serverPort}/\n`)
 })
 
 for (const sig of ['SIGINT', 'SIGTERM']) {

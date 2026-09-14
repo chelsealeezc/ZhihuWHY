@@ -2,7 +2,7 @@
 import { builtInArticleCards, builtInArticlesById } from './builtInArticles'
 
 export const product = {
-  name: '知乎·讨论图谱',
+  name: '知乎 · 回响',
   tagline: '让每一个好问题，连接更多好回答',
   heroTitle: '读到一句有感的话，发现更多真实的讨论',
   heroDesc:

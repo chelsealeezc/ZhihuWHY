@@ -59,6 +59,7 @@ export default function DiscussionSpace() {
   const [draft, setDraft] = useState('')
   const [localPosts, setLocalPosts] = useState([])
   const [composerMessage, setComposerMessage] = useState('')
+  const [agreedPosts, setAgreedPosts] = useState(() => new Set())
   const [activePersona, setActivePersona] = useState(null)
   const [chatDraft, setChatDraft] = useState('')
   const [chatMessages, setChatMessages] = useState([])
@@ -105,6 +106,15 @@ export default function DiscussionSpace() {
     setComposerMessage('已加入本场讨论（仅保存在当前页面）。')
   }
 
+  function toggleAgree(postId) {
+    setAgreedPosts((current) => {
+      const next = new Set(current)
+      if (next.has(postId)) next.delete(postId)
+      else next.add(postId)
+      return next
+    })
+  }
+
   function openPersona(person) {
     const persona = createPersona(person, allPosts)
     setActivePersona(persona)
@@ -119,8 +129,7 @@ export default function DiscussionSpace() {
   }
 
   function localPersonaReply(persona, question) {
-    const q = question.toLowerCase()
-    if (q.includes('为什么') || q.includes('原因')) {
+    if (question.toLowerCase().includes('为什么') || question.toLowerCase().includes('原因')) {
       return `${persona.name}：我的判断不是“只靠${persona.stance}”，而是先看阻力在哪里。${persona.description}如果你愿意，可以把你的具体场景说出来，我们一起拆解。`
     }
     return `${persona.name}：这个问题很具体。我会先保留我的立场，但不把它当成结论：${persona.description}你可以告诉我一个反例，我会根据那个场景重新说明。`
@@ -163,15 +172,19 @@ export default function DiscussionSpace() {
       <div className="space-layout">
         <aside className="space-col">
           <div className="card space-card topic-card">
+            <div className="topic-brand">
+              <span className="topic-mark">回</span>
+              <span>知乎 · 回响</span>
+            </div>
             <div className="topic">{space.topic}</div>
             <div className="meta">
               来自 {space.sourceCount} 篇回答 / 文章 · {space.participants} 人参与
             </div>
-            {space.real && <div className="real-badge">已聚合知乎真实表达</div>}
+            {space.real && <div className="real-badge">来自知乎回答</div>}
           </div>
 
           <div className="card space-card">
-            <h3>大家的观点分布</h3>
+            <h3>答主的观点分布</h3>
             <div className="dist-list">
               {space.options.map((opt) => (
                 <div
@@ -218,9 +231,7 @@ export default function DiscussionSpace() {
                 </li>
               ))}
             </ul>
-            <p className="muted" style={{ fontSize: 12, margin: '10px 0 0' }}>
-              个性化结果的关系标签由 AI 根据摘要判断；主题推荐回退数据仍使用演示关系。
-            </p>
+            <p className="filter-note">来源：知乎回答与文章</p>
           </div>
         </aside>
 
@@ -228,7 +239,7 @@ export default function DiscussionSpace() {
           <div className="space-main-header">
             <div>
               <h1>讨论空间</h1>
-              <p>不同回答与文章里的观点，在这里相遇</p>
+              <p>和相同、不同的人，交换一个具体观点</p>
             </div>
             <Link className="btn btn-secondary" to={`/read/${space.articleId || 'a1'}`}>
               返回阅读页
@@ -259,7 +270,14 @@ export default function DiscussionSpace() {
                 </div>
                 <p className="body">{post.text}</p>
                 <div className="post-actions">
-                  <span>认同 {post.agree}</span>
+                  <button
+                    type="button"
+                    className={agreedPosts.has(post.id) ? 'active' : ''}
+                    aria-pressed={agreedPosts.has(post.id)}
+                    onClick={() => toggleAgree(post.id)}
+                  >
+                    {agreedPosts.has(post.id) ? '已认同' : '认同'} {post.agree + (agreedPosts.has(post.id) ? 1 : 0)}
+                  </button>
                   <button type="button" onClick={() => focusComposer(post.stance)}>
                     追问
                   </button>

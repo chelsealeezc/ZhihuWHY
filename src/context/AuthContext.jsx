@@ -30,8 +30,6 @@ export function AuthProvider({ children }) {
         setLoginError(readableLoginError(data?.error?.code, data?.error?.message))
       }
       if (data.authorized) {
-        // 用户数据接口只依赖已保存的 OAuth token。即使基础资料接口
-        // 暂时失败，也不应把一个已授权会话降级成未登录状态。
         setUser(data.profile || { name: '已授权知乎用户' })
       } else {
         setUser(null)
