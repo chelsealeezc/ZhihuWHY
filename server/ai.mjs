@@ -122,3 +122,30 @@ export async function analyzeArticle(article) {
   }
   return validateMoments(parsed, new Set(paragraphs.map((paragraph) => String(paragraph.id))))
 }
+
+export async function chatWithPersona({ persona, messages }) {
+  const safePersona = persona || {}
+  const safeMessages = Array.isArray(messages) ? messages.slice(-10) : []
+  const latest = safeMessages.filter((message) => message?.role === 'user').at(-1)?.text || ''
+  if (!aiConfig.apiKey) {
+    return `${safePersona.name || '对方'}：我会坚持“${safePersona.stance || '这个观点'}”的出发点，但也承认它不是放之四海而皆准。${safePersona.description || ''}你可以再给我一个具体场景，我会针对那个场景回应。`
+  }
+  const evidence = Array.isArray(safePersona.evidence) ? safePersona.evidence.join('\n') : ''
+  const prompt = `你是一个观点分身，不要冒充真人，也不要声称拥有真人的最新动态。请基于该用户过往公开表达，模拟其在当前分歧中的思考方式，回答用户追问。保持中文、具体、克制，先回应问题，再给理由；如果证据不足，明确说这是推测。\n\n分身资料：\n姓名：${safePersona.name || '知乎用户'}\n立场标签：${safePersona.stance || ''}\n观点摘要：${safePersona.description || ''}\n表达特征：${(safePersona.traits || []).join('、')}\n过往公开表达摘录：\n${evidence}\n\n对话：\n${safeMessages.map((message) => `${message.role === 'user' ? '用户' : safePersona.name || '分身'}：${message.text}`).join('\n')}\n\n用户最新追问：${latest}`
+  let response
+  try {
+    response = await fetch(`${aiConfig.baseUrl}/responses`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${aiConfig.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: aiConfig.model, input: prompt, reasoning: { effort: 'low' } }),
+      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+    })
+  } catch {
+    return `${safePersona.name || '对方'}：我暂时无法连接实时模型，但可以先沿着公开表达回应：${safePersona.description || '这个分歧值得结合具体场景讨论。'}`
+  }
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) throw Object.assign(new Error('AI 分身暂时无法回应'), { code: 'AI_REQUEST_FAILED', status: 502 })
+  const reply = extractOutputText(payload).trim()
+  if (!reply) throw Object.assign(new Error('AI 分身没有返回内容'), { code: 'AI_OUTPUT_INVALID', status: 502 })
+  return reply
+}
