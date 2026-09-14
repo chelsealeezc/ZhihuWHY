@@ -58,6 +58,8 @@ Vercel 同时部署 Vite 前端与根目录 `api/` 下的 Functions。导入 Git
 https://<你的-vercel-域名>/api/auth/callback
 ```
 
+知乎部分 OAuth 环境不会在回调中返回 `state`。当前实现默认拒绝缺失 `state` 的回调；如果你已确认所用环境确实不返回 `state`，可在 Vercel 显式设置 `ZHIHU_OAUTH_ALLOW_MISSING_STATE=true`，兼容交换一次性授权码。
+
 GitHub Pages 继续作为 Mock UI 预览；其 workflow 会单独设置 `/ZhihuWHY/` 基础路径，不影响 Vercel 根路径部署。
 
 ## 后端部署（登录 / 收藏）

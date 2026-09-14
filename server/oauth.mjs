@@ -57,8 +57,16 @@ export async function handleCallback(request, response, url) {
   if (!session.state || Date.now() > session.stateExpiresAt) {
     throw Object.assign(new Error('state 已过期，请重新登录'), { code: 'STATE_EXPIRED' })
   }
-  if (!returnedState || !safeEqual(returnedState, session.state)) {
+  // 知乎部分 OAuth 环境会回传 state，部分历史环境不会回传。
+  // 有返回值时始终严格校验；缺失时仅在部署者显式开启兼容开关后继续，
+  // 默认仍拒绝缺失 state 的回调。
+  if (returnedState && !safeEqual(returnedState, session.state)) {
     throw Object.assign(new Error('state 校验失败'), { code: 'STATE_MISMATCH' })
+  }
+  if (!returnedState && process.env.ZHIHU_OAUTH_ALLOW_MISSING_STATE !== 'true') {
+    throw Object.assign(new Error('知乎回调缺少 state，请确认开放平台配置或开启兼容开关'), {
+      code: 'STATE_MISSING',
+    })
   }
 
   // 校验成功后立即消费，防止同一回调重复使用。
