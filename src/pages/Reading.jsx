@@ -190,18 +190,20 @@ export default function Reading() {
           </div>
 
           <div className="article-body">
-            {article.paragraphs.map((p) => (
-              <p
-                key={p.id}
-                ref={(el) => {
+            {article.paragraphs.map((p) => {
+              const sharedProps = {
+                ref: (el) => {
                   paragraphRefs.current[p.id] = el
-                }}
-                className={anchorId === p.id ? 'anchor-active' : ''}
-                data-moment={p.momentId || undefined}
-              >
-                {p.text}
-              </p>
-            ))}
+                },
+                className: anchorId === p.id ? 'anchor-active' : '',
+                'data-moment': p.momentId || undefined,
+              }
+              return p.kind === 'heading' ? (
+                <h2 key={p.id} {...sharedProps}>{p.text}</h2>
+              ) : (
+                <p key={p.id} {...sharedProps}>{p.text}</p>
+              )
+            })}
           </div>
 
           <div className="article-actions">

@@ -48,6 +48,19 @@
   outline: 1px solid #b7d4ff;
 }
 
+.article-body h2 {
+  margin: 30px 0 14px;
+  font-size: 18px;
+  line-height: 1.45;
+}
+
+.article-body h2.anchor-active {
+  background: var(--zh-blue-soft);
+  outline: 1px solid #b7d4ff;
+  border-radius: 6px;
+  padding: 2px 4px;
+}
+
 .article-actions {
   display: flex;
   gap: 12px;

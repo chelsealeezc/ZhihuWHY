@@ -1,4 +1,5 @@
 /** Fallback demo data used when the AI, search, or OAuth services are unavailable. */
+import { builtInArticleCards, builtInArticlesById } from './builtInArticles'
 
 export const product = {
   name: '知乎·讨论图谱',
@@ -14,73 +15,43 @@ export const mockUser = {
   avatar: '',
 }
 
+// 登录后这里会被真实的知乎收藏接口返回值覆盖；仅用于未登录时的旧版占位数据。
 export const mockFavorites = [
   {
-    id: 'a1',
-    type: 'answer',
-    question: '为什么大多数人没有超强的执行力？',
-    title: '执行力不是意志力，而是对结果的掌控感',
-    author: '九歌',
-    excerpt:
-      '很多人把执行力差归因于懒或意志薄弱。真正的问题往往是：成功次数太少，大脑从未建立「我能做成」的正向回路。',
-    voteup: 1621,
-    comments: 82,
-    favoritedAt: '2026-03-12',
+    id: 'a1', type: 'answer', question: '为什么大多数人没有超强的执行力？',
+    title: '执行力不是意志力，而是对结果的掌控感', author: '九歌',
+    excerpt: '很多人把执行力差归因于懒或意志薄弱。真正的问题往往是：成功次数太少，大脑从未建立「我能做成」的正向回路。',
+    voteup: 1621, comments: 82, favoritedAt: '2026-03-12',
   },
   {
-    id: 'a2',
-    type: 'article',
-    question: null,
-    title: '如何建立正向反馈循环？',
-    author: 'Lemon',
-    excerpt:
-      '我以前总觉得自己是不自律，后来发现只是长期没有获得正反馈。把目标拆到「今天就能赢一次」的粒度，比逼自己更有效。',
-    voteup: 1200,
-    comments: 156,
-    favoritedAt: '2026-02-28',
+    id: 'a2', type: 'article', question: null, title: '如何建立正向反馈循环？', author: 'Lemon',
+    excerpt: '我以前总觉得自己是不自律，后来发现只是长期没有获得正反馈。把目标拆到「今天就能赢一次」的粒度，比逼自己更有效。',
+    voteup: 1200, comments: 156, favoritedAt: '2026-02-28',
   },
   {
-    id: 'a3',
-    type: 'answer',
-    question: '30岁离开大城市，是一种失败吗？',
-    title: '工资少了一半，但我终于有时间陪父母了',
-    author: '林川',
-    excerpt:
-      '离开一线后，节奏慢下来。有人说是逃避，我觉得是换了一种衡量成功的尺子：陪伴、睡眠、和自己相处的时间。',
-    voteup: 3402,
-    comments: 421,
-    favoritedAt: '2026-01-15',
+    id: 'a3', type: 'answer', question: '30岁离开大城市，是一种失败吗？', title: '工资少了一半，但我终于有时间陪父母了', author: '林川',
+    excerpt: '离开一线后，节奏慢下来。有人说是逃避，我觉得是换了一种衡量成功的尺子：陪伴、睡眠、和自己相处的时间。',
+    voteup: 3402, comments: 421, favoritedAt: '2026-01-15',
   },
   {
-    id: 'a4',
-    type: 'answer',
-    question: '长期焦虑该怎么办？',
-    title: '焦虑往往来自「无法完成」的想象，而不是任务本身',
-    author: '陈知微',
-    excerpt:
-      '把模糊的大任务拆成可验证的小步，焦虑会跟着下降。执行力差和焦虑，经常是同一枚硬币的两面。',
-    voteup: 892,
-    comments: 64,
-    favoritedAt: '2025-12-03',
+    id: 'a4', type: 'answer', question: '长期焦虑该怎么办？', title: '焦虑往往来自「无法完成」的想象，而不是任务本身', author: '陈知微',
+    excerpt: '把模糊的大任务拆成可验证的小步，焦虑会跟着下降。执行力差和焦虑，经常是同一枚硬币的两面。',
+    voteup: 892, comments: 64, favoritedAt: '2025-12-03',
   },
   {
-    id: 'a5',
-    type: 'article',
-    question: null,
-    title: '环境如何悄悄决定你的行为',
-    author: '周然',
-    excerpt:
-      '意志力很贵，环境很便宜。把阻力从路径上拿走，比每天给自己打气更靠谱。',
-    voteup: 2103,
-    comments: 198,
-    favoritedAt: '2025-11-20',
+    id: 'a5', type: 'article', question: null, title: '环境如何悄悄决定你的行为', author: '周然',
+    excerpt: '意志力很贵，环境很便宜。把阻力从路径上拿走，比每天给自己打气更靠谱。',
+    voteup: 2103, comments: 198, favoritedAt: '2025-11-20',
   },
 ]
 
+export const demoArticleCards = builtInArticleCards
+
 /** Primary demo article used by「使用示例文章体验」 */
-export const sampleArticleId = 'a1'
+export const sampleArticleId = 'success-energy'
 
 export const articlesById = {
+  ...builtInArticlesById,
   a1: {
     id: 'a1',
     type: 'answer',
@@ -448,8 +419,117 @@ export function getArticle(id) {
   return articlesById[id] || articlesById[sampleArticleId]
 }
 
+function createOfflineMoment({ id, index, title, coreQuestion, summary, anchorParagraphId, options, quote }) {
+  return {
+    id,
+    index,
+    title,
+    coreQuestion,
+    summary,
+    anchorParagraphId,
+    relatedCount: 0,
+    participants: '等待加入',
+    related: [],
+    voteOptions: options.map((label, optionIndex) => ({ id: `v${optionIndex + 1}`, label })),
+    voteResults: { v1: 36, v2: 24, v3: 22, v4: 18 },
+    closestQuote: { text: quote, author: '观点引力场', source: '本文讨论', voteup: 0 },
+  }
+}
+
+const builtInOfflineMoments = {
+  'success-energy': [
+    createOfflineMoment({
+      id: 'energy-m1', index: 1, title: '被消除的摩擦', anchorParagraphId: 'p9',
+      coreQuestion: '成功者看起来精力充沛，关键是体力更强，还是日常摩擦被系统性消除了？',
+      summary: '文章用助理筛选信息、私人飞机和精确到分钟的行程说明：碎片化决策与等待被外包，才让精力没有在“赶路”中流失。',
+      options: ['消除摩擦是核心', '体力与天赋更关键', '目标感更关键', '三者缺一不可'],
+      quote: '各种垃圾信息都在抵达他之前都被粉碎了。',
+    }),
+    createOfflineMoment({
+      id: 'energy-m2', index: 2, title: '只做决策的人', anchorParagraphId: 'p20',
+      coreQuestion: '把工作剥离成“只做最核心决策”，是高效分工，还是一种难以复制的权力特权？',
+      summary: '从星舰材质大掉头、删除无用零件到危机阻断，文章把旺盛精力归因于工作内容的高度提纯——只做没人敢拍板的关键决策。',
+      options: ['高效分工的结果', '权力特权更明显', '关键在专业能力', '岗位不同无法比较'],
+      quote: '马斯克选择让星舰材质大掉头，让材料团队的方向从研究碳纤维复合材料换成改进不锈钢。',
+    }),
+    createOfflineMoment({
+      id: 'energy-m3', index: 3, title: '情绪劳动的去向', anchorParagraphId: 'p28',
+      coreQuestion: '当一个人把冲突、安抚与后果交给团队承担，这还是“精力管理”吗？',
+      summary: '文章把高效率的另一面点得很具体：人性纠葛和情绪劳动并未消失，而是被转移给了其他人，让他依然有精力思考下一步。',
+      options: ['是必要的角色分工', '是成本的转嫁', '取决于是否承担责任', '效率与伦理需分开看'],
+      quote: '有人帮马斯克屏蔽人性纠葛和情绪劳动。',
+    }),
+    createOfflineMoment({
+      id: 'energy-m4', index: 4, title: '早期的退路', anchorParagraphId: 'p41',
+      coreQuestion: '“极度简化生活”究竟是普通人可复制的方法，还是建立在隐形安全垫之上？',
+      summary: '文章先交代了马斯克早期的家庭与资源背景，随后才讨论他通过放弃生活、零通勤和快餐压缩摩擦的做法。',
+      options: ['安全垫决定上限', '方法本身可以借鉴', '只适合短期冲刺', '不能脱离个人处境'],
+      quote: '但马斯克做了一个惊人的决定：放弃生活。',
+    }),
+    createOfflineMoment({
+      id: 'energy-m5', index: 5, title: '普通人的简化模式', anchorParagraphId: 'p51',
+      coreQuestion: '普通人该如何简化生活，又怎样避免把“简化”误变成无意义的自我消耗？',
+      summary: '结尾把可借鉴的部分收束为：为了稳定而重要的核心目标，主动放弃低收益摩擦，而不是盲目苦行。',
+      options: ['先确定核心目标', '先减少琐碎任务', '先保证基本生活', '不应鼓励苦行'],
+      quote: '为了某种真正重要的东西，你愿意去否定其他东西，这就是简化模式的真谛。',
+    }),
+  ],
+  'human-relations': [
+    createOfflineMoment({
+      id: 'relations-m1', index: 1, title: '先找到自己的位置', anchorParagraphId: 'p4',
+      coreQuestion: '进入一个新圈子，先证明自己能做事，还是先经营关系更重要？',
+      summary: '文章开篇的路径很明确：先找到位置、做好位置上的事，再谈连接他人、组织势力和稳固地位。',
+      options: ['先把事做好', '先建立关系', '同步推进', '看圈子的规则'],
+      quote: '在一个圈子中自己的朋友多了，就能逐渐组织起自己的政治势力了。',
+    }),
+    createOfflineMoment({
+      id: 'relations-m2', index: 2, title: '做事先做人', anchorParagraphId: 'p9',
+      coreQuestion: '“做事之前是做人”，是成熟的处世智慧，还是对老实人的规训？',
+      summary: '这一段把情绪控制、避免无谓争执与“做人”放在一起，讨论关系中冲突的代价与做人的底线。',
+      options: ['做人是前提', '能力更重要', '先做事再做人', '看场景'],
+      quote: '做事之前是做人，做人都不行，别人根本不会看得起。',
+    }),
+    createOfflineMoment({
+      id: 'relations-m3', index: 3, title: '理性处理对立', anchorParagraphId: 'p16',
+      coreQuestion: '面对潜在对立，先评估利益和关系，是否比立即表达立场更成熟？',
+      summary: '文章在“排除异己”部分要求先辨识动机、利益联系、关系状态和对方处境；它提供的是一套冲突前的冷静审视框架。',
+      options: ['先评估再行动', '立场必须及时表达', '应优先寻求合作', '不该把关系工具化'],
+      quote: '目前与对手的状态是何种关系？公开敌对、潜在敌对、互不干涉、潜在合作、公开合作。',
+    }),
+    createOfflineMoment({
+      id: 'relations-m4', index: 4, title: '成果胜过奉承', anchorParagraphId: 'p24',
+      coreQuestion: '确立圈子地位，靠做出成果，还是靠人情与话术？',
+      summary: '文章认为直截了当表达谢意与回报、确保表达准确，最终拿出的成果比阿谀奉承更能确立地位。',
+      options: ['成果最有说服力', '人情同样重要', '两者都需要', '取决于圈子文化'],
+      quote: '当做出来的成果是好的时候，比什么阿谀奉承和笼络人心更能确立自己的地位。',
+    }),
+    createOfflineMoment({
+      id: 'relations-m5', index: 5, title: '劳动与社交', anchorParagraphId: 'p33',
+      coreQuestion: '劳动创造价值、社交表现价值：两者应如何平衡？',
+      summary: '文章把劳动与社交视为相互支撑的两种能力，讨论何时应投入作品、何时应投入关系，并指出无用劳动和无用社交都会损害自身价值。',
+      options: ['先做事再社交', '社交同样是能力', '不同阶段不同', '取决于行业'],
+      quote: '无用劳动和无用社交都会损害自身的价值与地位。',
+    }),
+    createOfflineMoment({
+      id: 'relations-m6', index: 6, title: '相互认可与沟通', anchorParagraphId: 'p48',
+      coreQuestion: '关系中的“相互认可”，如何避免变成单方面揣测与讨好？',
+      summary: '文章后段把社交重新定义为沟通：既传达自己，也考虑对方立场；人格平等是坦率协作的前提。',
+      options: ['清晰沟通最重要', '先建立信任', '先照顾对方感受', '关系天然不对等'],
+      quote: '沟通不仅仅是为了传达自己的信息与情绪，也要考虑对方的立场和情绪。',
+    }),
+    createOfflineMoment({
+      id: 'relations-m7', index: 7, title: '人格价值与信任', anchorParagraphId: 'p58',
+      coreQuestion: '能力、资源与人格价值，哪一个更决定长期合作的可靠性？',
+      summary: '文章将人格价值解释为利益交换的可靠性：做事周到、可信赖的人，能降低协作中的不确定性。',
+      options: ['人格价值最根本', '能力更有决定性', '资源更现实', '三者相互支撑'],
+      quote: '社交的本质是社会层面的利益交换，人格价值决定了利益交换的可靠性。',
+    }),
+  ],
+}
+
 export function getMoments(articleId) {
-  return momentsByArticleId[articleId] || momentsByArticleId[sampleArticleId]
+  // 长文会优先由 AI 从全文生成讨论瞬间；离线时展示对应主题的可交互讨论数据。
+  return momentsByArticleId[articleId] || builtInOfflineMoments[articleId] || momentsByArticleId.a1
 }
 
 export function getSpace(momentId) {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import Topbar from '../components/Topbar'
-import { mockFavorites, sampleArticleId } from '../data/mock'
+import { demoArticleCards, mockFavorites, sampleArticleId } from '../data/mock'
 import { useAuth } from '../context/AuthContext'
 import { saveImportedArticles } from '../services/importedArticles'
 import { searchRelatedContent } from '../services/discussions'
@@ -48,7 +48,7 @@ function mapSearchItem(item) {
 export default function ContentPicker() {
   const navigate = useNavigate()
   const { user, login } = useAuth()
-  const [mode, setMode] = useState('collections')
+  const [mode, setMode] = useState('demo')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(() => new Set())
   const [items, setItems] = useState([])
@@ -89,7 +89,7 @@ export default function ContentPicker() {
     }
   }, [user])
 
-  const sourceItems = mode === 'search' ? searchResults : items
+  const sourceItems = mode === 'demo' ? demoArticleCards : mode === 'search' ? searchResults : items
   const filtered = useMemo(() => {
     const q = query.trim()
     if (!q || mode === 'search') return sourceItems
@@ -116,6 +116,11 @@ export default function ContentPicker() {
 
   function importSelected() {
     const selectedItems = sourceItems.filter((item) => selected.has(item.id))
+    const [firstSelected] = selectedItems
+    if (firstSelected?.builtin) {
+      navigate(`/read/${firstSelected.id}`)
+      return
+    }
     const [first] = saveImportedArticles(selectedItems)
     navigate(`/read/${first?.id || sampleArticleId}`)
   }
@@ -147,9 +152,11 @@ export default function ContentPicker() {
       <main className="page picker-page">
         <div className="picker-header">
           <div>
-            <h1>{mode === 'search' ? '探索知乎真实内容' : '从我的知乎收藏开始'}</h1>
+            <h1>{mode === 'demo' ? '内置示例长文' : mode === 'search' ? '探索知乎真实内容' : '从我的知乎收藏开始'}</h1>
             <p className="muted" style={{ margin: 0 }}>
-              {mode === 'search'
+              {mode === 'demo'
+                ? '无需登录即可体验的两篇完整知乎长文'
+                : mode === 'search'
                 ? searchLoading
                   ? '正在搜索知乎公开内容…'
                   : `已找到 ${searchResults.length} 条真实内容`
@@ -157,7 +164,7 @@ export default function ContentPicker() {
                 ? loading
                   ? '正在读取你的知乎收藏…'
                   : `已加载 ${items.length} 条真实收藏`
-                : '登录知乎账号后可读取真实收藏；当前为示例数据'}
+                : '登录知乎账号后可读取真实收藏；当前展示收藏夹示例数据'}
               {fetchError ? `（${fetchError}）` : ''}
             </p>
           </div>
@@ -168,12 +175,23 @@ export default function ContentPicker() {
               </button>
             )}
             <Link className="btn btn-ghost" to={`/read/${sampleArticleId}`}>
-              改用示例文章
+              阅读内置长文
             </Link>
           </div>
         </div>
 
         <div className="picker-tabs">
+          <button
+            type="button"
+            className={mode === 'demo' ? 'active' : ''}
+            onClick={() => {
+              setMode('demo')
+              setSelected(new Set())
+              setSearchError(null)
+            }}
+          >
+            示例长文 · {demoArticleCards.length}
+          </button>
           <button
             type="button"
             className={mode === 'collections' ? 'active' : ''}
@@ -183,7 +201,7 @@ export default function ContentPicker() {
               setSearchError(null)
             }}
           >
-            我的收藏 · {items.length}
+            我的收藏 · {user ? items.length : '登录后读取'}
           </button>
           <button
             type="button"
@@ -202,7 +220,7 @@ export default function ContentPicker() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={mode === 'search' ? '搜索知乎公开内容，例如：执行力' : '搜索收藏的内容'}
+            placeholder={mode === 'search' ? '搜索知乎公开内容，例如：执行力' : mode === 'demo' ? '搜索示例文章' : '搜索收藏的内容'}
           />
           {mode === 'search' && (
             <button type="submit" className="btn btn-primary" disabled={searchLoading}>
