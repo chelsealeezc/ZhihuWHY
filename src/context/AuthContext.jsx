@@ -6,8 +6,10 @@ const LOGIN_ERROR_MESSAGES = {
   SERVER_CONFIG_MISSING: '登录服务尚未配置完整，请检查 Vercel 环境变量。',
   STATE_EXPIRED: '登录等待时间过长，请重新连接知乎。',
   STATE_MISMATCH: '登录状态校验失败，请重新连接知乎。',
+  STATE_MISSING: '知乎授权回调缺少登录状态，请检查回调配置。',
   CODE_MISSING: '知乎没有返回授权结果，请重新连接知乎。',
   TOKEN_EXCHANGE_FAILED: '知乎授权失败，请确认 OAuth 回调地址配置正确。',
+  TOKEN_EXPIRED: '知乎授权已过期，请重新登录。',
   OAUTH_FAILED: '知乎登录失败，请稍后重试。',
 }
 
@@ -27,8 +29,10 @@ export function AuthProvider({ children }) {
       if (!res.ok || data?.ok === false) {
         setLoginError(readableLoginError(data?.error?.code, data?.error?.message))
       }
-      if (data.authorized && data.profile) {
-        setUser(data.profile)
+      if (data.authorized) {
+        // 用户数据接口只依赖已保存的 OAuth token。即使基础资料接口
+        // 暂时失败，也不应把一个已授权会话降级成未登录状态。
+        setUser(data.profile || { name: '已授权知乎用户' })
       } else {
         setUser(null)
       }

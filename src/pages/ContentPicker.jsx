@@ -30,6 +30,21 @@ function mapCollectionItem(item) {
   }
 }
 
+function mapContentItem(item) {
+  return {
+    id: item.Url || item.Title,
+    url: item.Url || '',
+    type: item.ContentType || 'answer',
+    question: null,
+    title: item.Title || '(无标题)',
+    author: '我',
+    excerpt: item.Summary || '',
+    voteup: Number(item.LikeCount) || 0,
+    comments: Number(item.CommentCount) || 0,
+    favoritedAt: '',
+  }
+}
+
 function mapSearchItem(item) {
   return {
     id: item.id || item.url || item.title,
@@ -52,6 +67,7 @@ export default function ContentPicker() {
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(() => new Set())
   const [items, setItems] = useState([])
+  const [contentItems, setContentItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState(null)
   const [searchResults, setSearchResults] = useState([])
@@ -61,21 +77,34 @@ export default function ContentPicker() {
   useEffect(() => {
     if (!user) {
       setItems(mockFavorites)
+      setContentItems([])
       return
     }
     let cancelled = false
     setLoading(true)
     setFetchError(null)
-    fetch('/api/user/collections?limit=50', { credentials: 'include' })
-      .then((r) => r.json())
-      .then((data) => {
+    Promise.allSettled([
+      fetch('/api/user/collections?limit=50', { credentials: 'include' }).then((r) => r.json()),
+      fetch('/api/user/contents?type=all&limit=50', { credentials: 'include' }).then((r) => r.json()),
+    ])
+      .then(([collectionsResult, contentsResult]) => {
         if (cancelled) return
-        if (data.ok && Array.isArray(data.items)) {
-          setItems(data.items.map(mapCollectionItem))
+        const errors = []
+        const collections = collectionsResult.status === 'fulfilled' ? collectionsResult.value : null
+        const contents = contentsResult.status === 'fulfilled' ? contentsResult.value : null
+        if (collections?.ok && Array.isArray(collections.items)) {
+          setItems(collections.items.map(mapCollectionItem))
         } else {
-          setFetchError(data?.error?.message || '获取收藏失败')
+          errors.push(collections?.error?.message || '获取收藏失败')
           setItems(mockFavorites)
         }
+        if (contents?.ok && Array.isArray(contents.items)) {
+          setContentItems(contents.items.map(mapContentItem))
+        } else {
+          errors.push(contents?.error?.message || '获取创作内容失败')
+          setContentItems([])
+        }
+        setFetchError(errors.length > 0 ? errors.join('；') : null)
       })
       .catch(() => {
         if (!cancelled) {
@@ -89,7 +118,13 @@ export default function ContentPicker() {
     }
   }, [user])
 
-  const sourceItems = mode === 'demo' ? demoArticleCards : mode === 'search' ? searchResults : items
+  const sourceItems = mode === 'demo'
+    ? demoArticleCards
+    : mode === 'search'
+      ? searchResults
+      : mode === 'contents'
+        ? contentItems
+        : items
   const filtered = useMemo(() => {
     const q = query.trim()
     if (!q || mode === 'search') return sourceItems
@@ -152,7 +187,7 @@ export default function ContentPicker() {
       <main className="page picker-page">
         <div className="picker-header">
           <div>
-            <h1>{mode === 'demo' ? '内置示例长文' : mode === 'search' ? '探索知乎真实内容' : '从我的知乎收藏开始'}</h1>
+            <h1>{mode === 'demo' ? '内置示例长文' : mode === 'search' ? '探索知乎真实内容' : mode === 'contents' ? '从我的知乎创作开始' : '从我的知乎收藏开始'}</h1>
             <p className="muted" style={{ margin: 0 }}>
               {mode === 'demo'
                 ? '无需登录即可体验的两篇完整知乎长文'
@@ -160,6 +195,10 @@ export default function ContentPicker() {
                 ? searchLoading
                   ? '正在搜索知乎公开内容…'
                   : `已找到 ${searchResults.length} 条真实内容`
+                : mode === 'contents' && user
+                ? loading
+                  ? '正在读取你的知乎创作…'
+                  : `已加载 ${contentItems.length} 条真实创作`
                 : user
                 ? loading
                   ? '正在读取你的知乎收藏…'
@@ -202,6 +241,17 @@ export default function ContentPicker() {
             }}
           >
             我的收藏 · {user ? items.length : '登录后读取'}
+          </button>
+          <button
+            type="button"
+            className={mode === 'contents' ? 'active' : ''}
+            onClick={() => {
+              setMode('contents')
+              setSelected(new Set())
+              setSearchError(null)
+            }}
+          >
+            我的创作 · {user ? contentItems.length : '登录后读取'}
           </button>
           <button
             type="button"
@@ -255,7 +305,7 @@ export default function ContentPicker() {
         )}
 
         <div className="picker-list">
-          {(mode === 'collections' && loading) || (mode === 'search' && searchLoading) ? (
+          {((mode === 'collections' || mode === 'contents') && loading) || (mode === 'search' && searchLoading) ? (
             <div className="muted" style={{ padding: 24, textAlign: 'center' }}>加载中…</div>
           ) : (
             filtered.map((item) => {
@@ -293,6 +343,11 @@ export default function ContentPicker() {
           {mode === 'collections' && !loading && filtered.length === 0 && (
             <div className="muted" style={{ padding: 24, textAlign: 'center' }}>
               没有找到匹配的收藏内容
+            </div>
+          )}
+          {mode === 'contents' && !loading && filtered.length === 0 && (
+            <div className="muted" style={{ padding: 24, textAlign: 'center' }}>
+              没有找到匹配的创作内容
             </div>
           )}
         </div>

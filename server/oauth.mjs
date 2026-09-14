@@ -107,7 +107,8 @@ export async function handleCallback(request, response, url) {
     })
     const profileData = await profileRes.json()
     const src = profileData?.data || profileData?.Data || profileData
-    if (src && typeof src === 'object') {
+    const hasIdentity = src?.uid != null || src?.hash_id || src?.HashId
+    if (profileRes.ok && src && typeof src === 'object' && hasIdentity) {
       session.profile = {
         uid: src.uid != null ? String(src.uid) : null,
         hashId: src.hash_id || src.HashId || null,
@@ -116,6 +117,8 @@ export async function handleCallback(request, response, url) {
         headline: src.headline || src.Headline || null,
         url: src.url || src.Url || null,
       }
+    } else {
+      session.profile = null
     }
   } catch {
     session.profile = null
