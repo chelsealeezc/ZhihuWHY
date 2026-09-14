@@ -49,7 +49,6 @@ export function saveDiscussionSpace(moment, article, selectedChoices) {
       id: `chat-${item.id || index}`,
       name: item.author || '知乎用户',
       snippet: index % 3 === 1 ? '相关表达 · 与你可能存在分歧' : '相关表达 · 与你的选择可能相近',
-      evidence: [item.quote || item.title, item.why].filter(Boolean),
     })),
     sources: [
       {

@@ -5,44 +5,6 @@ import { getSpace } from '../data/mock'
 import { getSavedDiscussionSpace } from '../services/discussionSpaces'
 import './DiscussionSpace.css'
 
-const PERSONA_PRESETS = {
-  阿北: {
-    stance: '意志力派',
-    description: '相信反馈很重要，但真正的分水岭是没有反馈时仍能守住承诺。',
-    traits: ['重视长期承诺', '警惕单因归因', '表达直接'],
-    opening: '我会先提醒一句：正反馈能让人更容易开始，但总有一段窗口期没有反馈。你想从哪一次“还没看到结果，却继续做下去”的经历聊起？',
-  },
-  周然: {
-    stance: '环境设计派',
-    description: '更关注如何把行动阻力放到系统外，而不是每天消耗意志力。',
-    traits: ['喜欢拆解步骤', '关注环境杠杆', '偏行动建议'],
-    opening: '如果一个方法需要你每天都很有毅力，它可能还不够好。你现在最想改变的是哪一个环境触发点？',
-  },
-  清禾: {
-    stance: '评价焦虑视角',
-    description: '关注外界目光如何改变人的开始、交付和自我判断。',
-    traits: ['敏感于评价', '重视心理安全', '善于换位思考'],
-    opening: '很多“拖延”其实是在躲避被评价。你最近有没有一件明明会做，却因为怕别人怎么看而迟迟没开始的事？',
-  },
-}
-
-function createPersona(person, posts) {
-  const preset = PERSONA_PRESETS[person.name] || {}
-  const evidence = posts.filter((post) => post.user === person.name)
-  const publicEvidence = Array.isArray(person.evidence) && person.evidence.length > 0
-    ? person.evidence
-    : evidence.map((post) => post.text)
-  return {
-    ...person,
-    stance: preset.stance || person.snippet?.split('·')[0] || '讨论参与者',
-    description: preset.description || '根据其公开回答与讨论表达，提炼出一组可继续追问的观点线索。',
-    traits: preset.traits || ['有明确立场', '愿意解释依据', '欢迎具体追问'],
-    opening: preset.opening || `我会沿着“${person.snippet || '这个分歧'}”继续聊。你最想挑战我的哪一个前提？`,
-    evidenceCount: Math.max(4, evidence.length * 3 + 2),
-    evidence: publicEvidence.slice(0, 3),
-  }
-}
-
 export default function DiscussionSpace() {
   const { momentId } = useParams()
   const [searchParams] = useSearchParams()
@@ -59,12 +21,7 @@ export default function DiscussionSpace() {
   const [draft, setDraft] = useState('')
   const [localPosts, setLocalPosts] = useState([])
   const [composerMessage, setComposerMessage] = useState('')
-  const [activePersona, setActivePersona] = useState(null)
-  const [chatDraft, setChatDraft] = useState('')
-  const [chatMessages, setChatMessages] = useState([])
-  const [chatSending, setChatSending] = useState(false)
   const composerRef = useRef(null)
-  const chatInputRef = useRef(null)
 
   const allPosts = useMemo(() => [...localPosts, ...(space.posts || [])], [localPosts, space.posts])
 
@@ -102,58 +59,6 @@ export default function DiscussionSpace() {
     ])
     setDraft('')
     setComposerMessage('已加入本场讨论（仅保存在当前页面）。')
-  }
-
-  function openPersona(person) {
-    const persona = createPersona(person, allPosts)
-    setActivePersona(persona)
-    setChatMessages([{ role: 'assistant', text: persona.opening }])
-    setChatDraft('')
-    window.setTimeout(() => chatInputRef.current?.focus(), 80)
-  }
-
-  function closePersona() {
-    setActivePersona(null)
-    setChatSending(false)
-  }
-
-  function localPersonaReply(persona, question) {
-    const q = question.toLowerCase()
-    if (q.includes('为什么') || q.includes('原因')) {
-      return `${persona.name}：我的判断不是“只靠${persona.stance}”，而是先看阻力在哪里。${persona.description}如果你愿意，可以把你的具体场景说出来，我们一起拆解。`
-    }
-    return `${persona.name}：这个问题很具体。我会先保留我的立场，但不把它当成结论：${persona.description}你可以告诉我一个反例，我会根据那个场景重新说明。`
-  }
-
-  async function sendPersonaMessage(event) {
-    event.preventDefault()
-    const text = chatDraft.trim()
-    if (!text || !activePersona || chatSending) return
-    setChatDraft('')
-    setChatMessages((messages) => [...messages, { role: 'user', text }])
-    setChatSending(true)
-    try {
-      const response = await fetch('/api/discussions/persona-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          persona: activePersona,
-          messages: [...chatMessages, { role: 'user', text }],
-        }),
-      })
-      const data = await response.json().catch(() => null)
-      if (!response.ok || !data?.ok) throw new Error('fallback')
-      setChatMessages((messages) => [...messages, { role: 'assistant', text: data.reply }])
-    } catch {
-      await new Promise((resolve) => window.setTimeout(resolve, 450))
-      setChatMessages((messages) => [
-        ...messages,
-        { role: 'assistant', text: localPersonaReply(activePersona, text) },
-      ])
-    } finally {
-      setChatSending(false)
-      window.setTimeout(() => chatInputRef.current?.focus(), 60)
-    }
   }
 
   return (
@@ -303,7 +208,7 @@ export default function DiscussionSpace() {
                   <button
                     type="button"
                     className="btn btn-secondary"
-                    onClick={() => openPersona(person)}
+                    onClick={() => focusComposer(person.snippet.includes('分歧') ? 'diff' : 'same')}
                   >
                     聊聊这个分歧
                   </button>
@@ -336,64 +241,6 @@ export default function DiscussionSpace() {
           </div>
         </aside>
       </div>
-      {activePersona && (
-        <div className="persona-overlay" role="presentation" onMouseDown={closePersona}>
-          <section
-            className="persona-drawer"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="persona-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <div className="persona-head">
-              <div className="persona-heading">
-                <div className="avatar lg">{activePersona.name.slice(0, 1)}</div>
-                <div>
-                  <div className="eyebrow">基于公开表达生成的 AI 分身</div>
-                  <h2 id="persona-title">和 {activePersona.name} 聊聊</h2>
-                  <div className="persona-stance">{activePersona.stance}</div>
-                </div>
-              </div>
-              <button type="button" className="persona-close" onClick={closePersona} aria-label="关闭对话">
-                ×
-              </button>
-            </div>
-            <div className="persona-profile">
-              <p>{activePersona.description}</p>
-              <div className="persona-traits">
-                {activePersona.traits.map((trait) => <span key={trait}>{trait}</span>)}
-              </div>
-              <div className="persona-evidence">
-                <span>已参考 {activePersona.evidenceCount} 条公开表达</span>
-                <span>仅用于观点模拟，不代表本人实时发言</span>
-              </div>
-              {activePersona.evidence.length > 0 && (
-                <div className="persona-quotes">
-                  {activePersona.evidence.map((quote) => <blockquote key={quote}>“{quote}”</blockquote>)}
-                </div>
-              )}
-            </div>
-            <div className="persona-chat" aria-live="polite">
-              {chatMessages.map((message, index) => (
-                <div key={`${message.role}-${index}`} className={`chat-bubble ${message.role}`}>
-                  {message.text}
-                </div>
-              ))}
-              {chatSending && <div className="chat-typing">AI 分身正在组织观点…</div>}
-            </div>
-            <form className="persona-composer" onSubmit={sendPersonaMessage}>
-              <input
-                ref={chatInputRef}
-                value={chatDraft}
-                onChange={(event) => setChatDraft(event.target.value)}
-                placeholder={`追问 ${activePersona.name} 的理由…`}
-                aria-label={`追问 ${activePersona.name} 的理由`}
-              />
-              <button className="btn btn-primary" type="submit" disabled={!chatDraft.trim() || chatSending}>发送</button>
-            </form>
-          </section>
-        </div>
-      )}
     </div>
   )
 }

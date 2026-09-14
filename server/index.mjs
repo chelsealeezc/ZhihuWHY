@@ -12,7 +12,7 @@ import {
   getCollections,
   getContents,
 } from './oauth.mjs'
-import { analyzeArticle, chatWithPersona } from './ai.mjs'
+import { analyzeArticle } from './ai.mjs'
 import { searchZhihu } from './zhihu.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -142,19 +142,6 @@ const server = http.createServer(async (req, res) => {
         return json(res, e.status || 500, {
           ok: false,
           error: { code: e.code || 'ANALYZE_FAILED', message: e.message },
-        })
-      }
-    }
-
-    if (p === '/api/discussions/persona-chat' && req.method === 'POST') {
-      try {
-        const body = await readJson(req)
-        const reply = await chatWithPersona(body)
-        return json(res, 200, { ok: true, reply })
-      } catch (e) {
-        return json(res, e.status || 500, {
-          ok: false,
-          error: { code: e.code || 'PERSONA_CHAT_FAILED', message: e.message },
         })
       }
     }
