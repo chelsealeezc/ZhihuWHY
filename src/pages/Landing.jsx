@@ -51,6 +51,9 @@ export default function Landing() {
             <Link className="btn btn-secondary" to={`/read/${sampleArticleId}`}>
               使用示例文章体验
             </Link>
+            <Link className="btn btn-ghost" to="/picker">
+              先探索知乎真实内容 →
+            </Link>
           </div>
         </section>
 

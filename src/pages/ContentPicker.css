@@ -53,6 +53,15 @@
   background: var(--bg-white);
 }
 
+.picker-error {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 13px;
+}
+
 .picker-list {
   display: flex;
   flex-direction: column;

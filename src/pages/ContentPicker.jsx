@@ -4,6 +4,7 @@ import Topbar from '../components/Topbar'
 import { mockFavorites, sampleArticleId } from '../data/mock'
 import { useAuth } from '../context/AuthContext'
 import { saveImportedArticles } from '../services/importedArticles'
+import { searchRelatedContent } from '../services/discussions'
 import './ContentPicker.css'
 
 const MAX_SELECT = 5
@@ -29,14 +30,33 @@ function mapCollectionItem(item) {
   }
 }
 
+function mapSearchItem(item) {
+  return {
+    id: item.id || item.url || item.title,
+    url: item.url || '',
+    type: item.type || 'answer',
+    question: null,
+    title: item.title || '(无标题)',
+    author: item.author || '知乎用户',
+    excerpt: item.quote || '',
+    voteup: Number(item.voteup) || 0,
+    comments: Number(item.comments) || 0,
+    favoritedAt: '',
+  }
+}
+
 export default function ContentPicker() {
   const navigate = useNavigate()
   const { user, login } = useAuth()
+  const [mode, setMode] = useState('collections')
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(() => new Set())
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState(null)
+  const [searchResults, setSearchResults] = useState([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchError, setSearchError] = useState(null)
 
   useEffect(() => {
     if (!user) {
@@ -69,17 +89,18 @@ export default function ContentPicker() {
     }
   }, [user])
 
+  const sourceItems = mode === 'search' ? searchResults : items
   const filtered = useMemo(() => {
     const q = query.trim()
-    if (!q) return items
-    return items.filter(
+    if (!q || mode === 'search') return sourceItems
+    return sourceItems.filter(
       (item) =>
         item.title.includes(q) ||
         item.author.includes(q) ||
         (item.question && item.question.includes(q)) ||
         item.excerpt.includes(q),
     )
-  }, [query, items])
+  }, [mode, query, sourceItems])
 
   const visibleIds = useMemo(() => filtered.map((item) => item.id), [filtered])
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id))
@@ -94,9 +115,30 @@ export default function ContentPicker() {
   }
 
   function importSelected() {
-    const selectedItems = items.filter((item) => selected.has(item.id))
+    const selectedItems = sourceItems.filter((item) => selected.has(item.id))
     const [first] = saveImportedArticles(selectedItems)
     navigate(`/read/${first?.id || sampleArticleId}`)
+  }
+
+  async function searchPublicContent(event) {
+    event.preventDefault()
+    const keyword = query.trim()
+    if (!keyword) {
+      setSearchError('请输入搜索关键词')
+      return
+    }
+    setSearchLoading(true)
+    setSearchError(null)
+    setSelected(new Set())
+    try {
+      const results = await searchRelatedContent(keyword, 10)
+      setSearchResults(results.map(mapSearchItem))
+    } catch (error) {
+      setSearchResults([])
+      setSearchError(error.message || '知乎搜索失败，请稍后重试')
+    } finally {
+      setSearchLoading(false)
+    }
   }
 
   return (
@@ -105,9 +147,13 @@ export default function ContentPicker() {
       <main className="page picker-page">
         <div className="picker-header">
           <div>
-            <h1>从我的知乎收藏开始</h1>
+            <h1>{mode === 'search' ? '探索知乎真实内容' : '从我的知乎收藏开始'}</h1>
             <p className="muted" style={{ margin: 0 }}>
-              {user
+              {mode === 'search'
+                ? searchLoading
+                  ? '正在搜索知乎公开内容…'
+                  : `已找到 ${searchResults.length} 条真实内容`
+                : user
                 ? loading
                   ? '正在读取你的知乎收藏…'
                   : `已加载 ${items.length} 条真实收藏`
@@ -128,17 +174,41 @@ export default function ContentPicker() {
         </div>
 
         <div className="picker-tabs">
-          <button type="button" className="active">
+          <button
+            type="button"
+            className={mode === 'collections' ? 'active' : ''}
+            onClick={() => {
+              setMode('collections')
+              setSelected(new Set())
+              setSearchError(null)
+            }}
+          >
             我的收藏 · {items.length}
+          </button>
+          <button
+            type="button"
+            className={mode === 'search' ? 'active' : ''}
+            onClick={() => {
+              setMode('search')
+              setSelected(new Set())
+              setSearchError(null)
+            }}
+          >
+            探索知乎 · {searchResults.length || '实时'}
           </button>
         </div>
 
-        <div className="picker-toolbar">
+        <form className="picker-toolbar" onSubmit={mode === 'search' ? searchPublicContent : (event) => event.preventDefault()}>
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索收藏的内容"
+            placeholder={mode === 'search' ? '搜索知乎公开内容，例如：执行力' : '搜索收藏的内容'}
           />
+          {mode === 'search' && (
+            <button type="submit" className="btn btn-primary" disabled={searchLoading}>
+              {searchLoading ? '搜索中…' : '搜索知乎'}
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-secondary"
@@ -160,10 +230,14 @@ export default function ContentPicker() {
           >
             {allVisibleSelected ? '取消全选' : '全选'}
           </button>
-        </div>
+        </form>
+
+        {mode === 'search' && searchError && (
+          <div className="picker-error" role="alert">真实内容暂未加载：{searchError}</div>
+        )}
 
         <div className="picker-list">
-          {loading ? (
+          {(mode === 'collections' && loading) || (mode === 'search' && searchLoading) ? (
             <div className="muted" style={{ padding: 24, textAlign: 'center' }}>加载中…</div>
           ) : (
             filtered.map((item) => {
@@ -193,7 +267,12 @@ export default function ContentPicker() {
               )
             })
           )}
-          {!loading && filtered.length === 0 && (
+          {mode === 'search' && !searchLoading && searchResults.length === 0 && !searchError && (
+            <div className="muted" style={{ padding: 24, textAlign: 'center' }}>
+              输入关键词，搜索知乎公开内容
+            </div>
+          )}
+          {mode === 'collections' && !loading && filtered.length === 0 && (
             <div className="muted" style={{ padding: 24, textAlign: 'center' }}>
               没有找到匹配的收藏内容
             </div>
