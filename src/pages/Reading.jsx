@@ -518,7 +518,7 @@ export default function Reading() {
                       />
                       {(activeRecommendation.groups.neutral || []).length > 0 && (
                         <RecommendationGroup
-                          title="相关但立场尚不明确"
+                          title={activeRecommendation.refining ? '相关表达 · 正在判断立场…' : '相关但立场尚不明确'}
                           tone="neutral"
                           items={activeRecommendation.groups.neutral}
                         />
