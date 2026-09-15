@@ -2,6 +2,18 @@ const analysisRequests = new Map()
 const searchRequests = new Map()
 const ANALYSIS_CACHE_PREFIX = 'zhihuwhy:analysis:v1:'
 const ANALYSIS_CACHE_TTL = 24 * 60 * 60 * 1000
+// 客户端兜底超时：保证 loading 状态一定会结束，不会永久卡住界面。
+const SEARCH_TIMEOUT_MS = 20_000
+const RECOMMEND_TIMEOUT_MS = 100_000
+
+function toTimeoutError(error, code, message) {
+  if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+    const timeoutError = new Error(message)
+    timeoutError.code = code
+    return timeoutError
+  }
+  return error
+}
 
 function getCachedAnalysis(key) {
   try {
@@ -70,12 +82,14 @@ export function analyzeArticle(article) {
 export function searchRelatedContent(query, count = 4, fallback = '') {
   const key = `${query}:${count}:${fallback}`
   if (!searchRequests.has(key)) {
-    const request = fetch(`/api/zhihu/search?${new URLSearchParams({ query, count, fallback })}`)
+    const request = fetch(`/api/zhihu/search?${new URLSearchParams({ query, count, fallback })}`, {
+      signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
+    })
       .then(readApiResponse)
       .then((data) => data.items)
       .catch((error) => {
         searchRequests.delete(key)
-        throw error
+        throw toTimeoutError(error, 'SEARCH_TIMEOUT', '检索超时，请稍后重试。')
       })
     searchRequests.set(key, request)
   }
@@ -83,18 +97,24 @@ export function searchRelatedContent(query, count = 4, fallback = '') {
 }
 
 export async function recommendRelatedContent(moment, selectedOpinions) {
-  const response = await fetch('/api/discussions/recommend', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      moment: {
-        coreQuestion: moment.coreQuestion,
-        searchQuery: moment.searchQuery || moment.coreQuestion,
-      },
-      selectedOpinions,
-      candidates: Array.isArray(moment.related) ? moment.related.slice(0, 10) : [],
-    }),
-  })
+  let response
+  try {
+    response = await fetch('/api/discussions/recommend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        moment: {
+          coreQuestion: moment.coreQuestion,
+          searchQuery: moment.searchQuery || moment.coreQuestion,
+        },
+        selectedOpinions,
+        candidates: Array.isArray(moment.related) ? moment.related.slice(0, 10) : [],
+      }),
+      signal: AbortSignal.timeout(RECOMMEND_TIMEOUT_MS),
+    })
+  } catch (error) {
+    throw toTimeoutError(error, 'RECOMMEND_TIMEOUT', '观点精排超时，已保留相关内容。')
+  }
   const data = await readApiResponse(response)
   return data.groups
 }

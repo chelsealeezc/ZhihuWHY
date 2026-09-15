@@ -469,7 +469,7 @@ export default function Reading() {
                   <button
                     type="button"
                     className="btn btn-primary btn-block"
-                    disabled={selectedVotes.length === 0 || relatedState[activeMoment.id]?.status === 'loading'}
+                    disabled={selectedVotes.length === 0}
                     onClick={submitVote}
                   >
                     提交我的选择
@@ -530,7 +530,6 @@ export default function Reading() {
                     <button
                       type="button"
                       className="btn btn-primary"
-                      disabled={activeRecommendation?.refining || relatedState[activeMoment.id]?.status === 'loading'}
                       onClick={() => openDiscussionSpace(activeMoment, article, selectedVotes)}
                     >
                       进入讨论空间
