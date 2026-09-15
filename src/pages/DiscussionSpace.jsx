@@ -93,6 +93,10 @@ export default function DiscussionSpace() {
   const chatEndRef = useRef(null)
 
   const allPosts = useMemo(() => [...localPosts, ...(space.posts || [])], [localPosts, space.posts])
+  const participantCount = useMemo(
+    () => new Set(allPosts.map((post) => post.user).filter(Boolean)).size,
+    [allPosts],
+  )
 
   const posts = useMemo(() => {
     if (feedFilter === 'same') return allPosts.filter((p) => p.stance === 'same')
@@ -200,7 +204,7 @@ export default function DiscussionSpace() {
             </div>
             <div className="topic">{space.topic}</div>
             <div className="meta">
-              来自 {space.sourceCount} 篇回答 / 文章 · {space.participants} 人参与
+              来自 {space.sourceCount} 篇回答 / 文章 · 已聚合 {participantCount} 位参与者
             </div>
             {space.real && <div className="real-badge">来自知乎回答</div>}
           </div>

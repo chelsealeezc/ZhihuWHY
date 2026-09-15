@@ -16,7 +16,7 @@ function createLiveMoment(moment, fallbackMoment) {
     ...moment,
     index: moment.index || fallbackMoment?.index || 1,
     relatedCount: 0,
-    participants: '等待加入',
+    participants: 0,
     related: [],
     voteResults: fallbackMoment?.voteResults || { v1: 36, v2: 24, v3: 22, v4: 18 },
     closestQuote: fallbackMoment?.closestQuote || {
@@ -27,6 +27,10 @@ function createLiveMoment(moment, fallbackMoment) {
     },
     source: 'ai',
   }
+}
+
+function countRelatedAuthors(items) {
+  return new Set(items.map((item) => String(item.author || '').trim()).filter(Boolean)).size
 }
 
 function mapRelatedItem(item, moment) {
@@ -166,6 +170,7 @@ export default function Reading() {
                   ...moment,
                   related: items.slice(0, 4).map((item) => mapRelatedItem(item, moment)),
                   relatedCount: items.length,
+                  participants: countRelatedAuthors(items.slice(0, 4)),
                   closestQuote: items[0]
                     ? {
                         text: items[0].quote || items[0].title,
@@ -395,7 +400,13 @@ export default function Reading() {
                 <p>{activeMoment.summary}</p>
                 <div className="core-meta">
                   <span>{activeMoment.relatedCount} 篇相关内容</span>
-                  <span>{activeMoment.participants} 人参与讨论</span>
+                  <span>
+                    {typeof activeMoment.participants === 'number'
+                      ? activeMoment.participants > 0
+                        ? `已聚合 ${activeMoment.participants} 位答主`
+                        : '暂无相关答主'
+                      : `约 ${activeMoment.participants} 人参与讨论（示例）`}
+                  </span>
                 </div>
                 <button type="button" className="btn btn-secondary" onClick={locateOriginal}>
                   定位到原文

@@ -39,12 +39,13 @@ export function saveDiscussionSpace(moment, article, selectedChoices) {
     url: item.url || '',
     real: true,
   }))
+  const participantCount = new Set(posts.map((post) => post.user).filter(Boolean)).size
 
   const context = {
     momentId: moment.id,
     topic: moment.coreQuestion,
     sourceCount: related.length + 1,
-    participants: moment.participants || '等待加入',
+    participantCount,
     options,
     distribution,
     filters: [

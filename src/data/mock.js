@@ -441,7 +441,7 @@ function createOfflineMoment({ id, index, title, coreQuestion, summary, anchorPa
     summary,
     anchorParagraphId,
     relatedCount: 0,
-    participants: '等待加入',
+    participants: 0,
     related: [],
     voteOptions: options.map((label, optionIndex) => ({ id: `v${optionIndex + 1}`, label })),
     voteResults: { v1: 36, v2: 24, v3: 22, v4: 18 },
