@@ -115,13 +115,13 @@ export async function dispatch(route, request, response) {
       const suppliedCandidates = Array.isArray(body.candidates) ? body.candidates.slice(0, 10) : []
       const search = suppliedCandidates.length > 0
         ? { items: suppliedCandidates, searchHashId: null }
-        : await searchZhihu(body.moment?.searchQuery, 10)
+        : await searchZhihu(body.moment?.searchQuery || body.moment?.coreQuestion, 10, body.moment?.coreQuestion)
       const groups = await classifyRelatedContent(body.moment, body.selectedOpinions, search.items)
       return json(response, 200, { ok: true, groups, searchHashId: search.searchHashId })
     }
     if (route === 'zhihu/search') {
       if (request.method !== 'GET') return methodNotAllowed(response, 'GET')
-      const result = await searchZhihu(url.searchParams.get('query'), url.searchParams.get('count'))
+      const result = await searchZhihu(url.searchParams.get('query'), url.searchParams.get('count'), url.searchParams.get('fallback'))
       return json(response, 200, { ok: true, ...result })
     }
     return json(response, 404, { ok: false, error: { code: 'NOT_FOUND', message: '接口不存在' } })

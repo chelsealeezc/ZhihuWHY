@@ -1,5 +1,13 @@
 const STORAGE_KEY = 'zhihuwhy:discussion-spaces:v3'
 
+function isGeneric(value) {
+  return /提供了相关观点或真实经历|该内容与当前议题相关，但|先展示已加载的知乎真实内容/.test(String(value || ''))
+}
+
+function authorView(item) {
+  return [item.viewpoint, item.claim].find((value) => value?.trim() && !isGeneric(value)) || ''
+}
+
 function readStore() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}
@@ -30,14 +38,12 @@ export function saveDiscussionSpace(moment, article, selectedChoices) {
         ? 'same'
         : item.stance === 'neutral'
           ? 'neutral'
-          : index % 3 === 1
-            ? 'diff'
-            : 'same',
-    stanceOptionId: options[index % Math.max(options.length, 1)]?.id,
-    text: item.viewpoint || item.claim || item.why || item.title || '该内容与当前讨论相关。',
+          : 'neutral',
+    stanceOptionId: undefined,
+    text: authorView(item) || item.quote || item.title || '暂无可展示的原文摘录。',
     sourceExcerpt: item.quote || '',
     sourceTitle: item.title || '知乎内容',
-    refined: true,
+    refined: Boolean(authorView(item)),
     agree: Number(item.voteup) || 0,
     url: item.url || '',
     real: true,
@@ -61,16 +67,14 @@ export function saveDiscussionSpace(moment, article, selectedChoices) {
     worthChat: related.slice(0, 3).map((item, index) => ({
       id: `chat-${item.id || index}`,
       name: item.author || '知乎用户',
-      claim: item.claim || item.why || item.title,
+      claim: authorView(item) || item.quote || item.title,
       snippet: item.stance === 'diff' || item.stance === 'different'
         ? '相关表达 · 与你存在分歧'
         : item.stance === 'same'
           ? '相关表达 · 与你的选择相近'
           : item.stance === 'neutral'
             ? '相关表达 · 立场尚不明确'
-            : index % 3 === 1
-              ? '相关表达 · 与你可能存在分歧'
-              : '相关表达 · 与你的选择可能相近',
+            : '相关表达 · 立场尚不明确',
       evidence: [item.quote || item.title].filter(Boolean),
     })),
     sources: [
@@ -108,5 +112,21 @@ export function saveDiscussionSpace(moment, article, selectedChoices) {
 }
 
 export function getSavedDiscussionSpace(momentId) {
-  return readStore()[momentId] || null
+  const saved = readStore()[momentId]
+  if (!saved) return null
+  // Repair previously saved generic copy without discarding source evidence.
+  const posts = (saved.posts || []).map((post) => isGeneric(post.text)
+    ? { ...post, text: post.sourceExcerpt || post.sourceTitle || '暂无可展示的原文摘录。', refined: false, stance: 'neutral' }
+    : post)
+  return {
+    ...saved,
+    posts,
+    filters: (saved.filters || []).map((filter) => ({
+      ...filter,
+      count: filter.id === 'real' ? posts.length : posts.filter((post) => post.stance === filter.id).length,
+    })),
+    worthChat: (saved.worthChat || []).map((person) => isGeneric(person.claim)
+      ? { ...person, claim: person.evidence?.[0] || '', snippet: '相关表达 · 立场尚不明确' }
+      : person),
+  }
 }

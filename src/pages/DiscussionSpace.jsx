@@ -300,7 +300,7 @@ export default function DiscussionSpace() {
               <div className="card empty-feed">这个筛选下暂时没有观点，换个筛选看看。</div>
             )}
             {posts.map((post) => {
-              const refined = post.refined || (post.user !== '我' && Boolean(post.sourceExcerpt))
+              const refined = Boolean(post.refined)
               const sourceExpanded = expandedSources.has(post.id)
               const sourceUrl = sourceUrlWithTextFragment(post.url, post.sourceExcerpt)
               return <article key={post.id} className="card post-card">
@@ -327,7 +327,7 @@ export default function DiscussionSpace() {
                   </div>
                 )}
                 <p className="body">{post.text}</p>
-                {refined && sourceExpanded && (
+                {post.sourceExcerpt && sourceExpanded && (
                   <div className="source-evidence">
                     <div className="source-evidence-title">
                       <span>原文依据</span>

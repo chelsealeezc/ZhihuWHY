@@ -13,7 +13,7 @@ function stripHighlightTags(value) {
   return String(value || '').replace(/<\/?em>/gi, '')
 }
 
-export async function searchZhihu(query, count = 10) {
+export async function searchZhihu(query, count = 10, fallbackQuery = '') {
   const normalizedQuery = String(query || '').trim()
   if (!normalizedQuery) {
     throw Object.assign(new Error('搜索关键词不能为空'), { code: 'QUERY_REQUIRED', status: 400 })
@@ -44,6 +44,9 @@ export async function searchZhihu(query, count = 10) {
   }
 
   const items = Array.isArray(payload?.Data?.Items) ? payload.Data.Items : []
+  if (items.length === 0 && String(fallbackQuery || '').trim() && String(fallbackQuery).trim() !== normalizedQuery) {
+    return searchZhihu(fallbackQuery, count)
+  }
   return {
     searchHashId: payload?.Data?.SearchHashId || null,
     emptyReason: payload?.Data?.EmptyReason || null,

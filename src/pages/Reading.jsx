@@ -101,6 +101,7 @@ export default function Reading() {
   const [loading, setLoading] = useState(true)
   const [moments, setMoments] = useState(fallbackMoments)
   const [analysisMode, setAnalysisMode] = useState('loading')
+  const [analysisError, setAnalysisError] = useState('')
   const [relatedState, setRelatedState] = useState({})
   const [activeMomentId, setActiveMomentId] = useState(fallbackMoments[0]?.id)
   const [selectedVotes, setSelectedVotes] = useState([])
@@ -110,6 +111,7 @@ export default function Reading() {
   const [endorsed, setEndorsed] = useState(false)
   const [saved, setSaved] = useState(false)
   const paragraphRefs = useRef({})
+  const recommendationRequests = useRef({})
 
   const activeMoment = useMemo(
     () => moments.find((m) => m.id === activeMomentId) || moments[0],
@@ -123,8 +125,10 @@ export default function Reading() {
     setMoments(fallbackMoments)
     setActiveMomentId(fallbackMoments[0]?.id)
     setAnalysisMode('loading')
+    setAnalysisError('')
     setRelatedState({})
     setRecommendationState({})
+    recommendationRequests.current = {}
     let cancelled = false
 
     analyzeArticle(article)
@@ -137,9 +141,10 @@ export default function Reading() {
         setActiveMomentId(liveMoments[0]?.id)
         setAnalysisMode('live')
       })
-      .catch(() => {
+      .catch((error) => {
         if (cancelled) return
         setAnalysisMode('fallback')
+        setAnalysisError(`${error.code || 'ANALYSIS_FAILED'}：${error.message}`)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -156,10 +161,10 @@ export default function Reading() {
   }, [activeMomentId])
 
   useEffect(() => {
-    if (!activeMoment?.searchQuery || relatedState[activeMoment.id]) return
+    if (!activeMoment?.coreQuestion || relatedState[activeMoment.id]) return
     const momentId = activeMoment.id
     setRelatedState((current) => ({ ...current, [momentId]: { status: 'loading' } }))
-    searchRelatedContent(activeMoment.searchQuery, 4)
+    searchRelatedContent(activeMoment.searchQuery || activeMoment.coreQuestion, 4, activeMoment.coreQuestion)
       .then((items) => {
         setMoments((current) =>
           current.map((moment) =>
@@ -181,12 +186,12 @@ export default function Reading() {
               : moment,
           ),
         )
-        setRelatedState((current) => ({ ...current, [momentId]: { status: 'ready' } }))
+        setRelatedState((current) => ({ ...current, [momentId]: { status: items.length ? 'ready' : 'empty' } }))
       })
       .catch((error) => {
         setRelatedState((current) => ({
           ...current,
-          [momentId]: { status: 'error', message: error.message },
+          [momentId]: { status: 'error', message: `${error.code || 'SEARCH_FAILED'}：${error.message}` },
         }))
       })
   }, [activeMoment, relatedState])
@@ -224,13 +229,26 @@ export default function Reading() {
         why: item.why || '先展示已加载的知乎真实内容，正在后台判断与所选观点的关系。',
       })),
     }
+    const requestToken = {}
+    recommendationRequests.current[momentId] = requestToken
+    setMoments((current) => current.map((item) => item.id === momentId
+      ? { ...item, related: instantGroups.neutral }
+      : item))
     setSubmitted(true)
     setRecommendationState((current) => ({
       ...current,
       [momentId]: { status: 'ready', groups: instantGroups, refining: true },
     }))
+    if (instantRelated.length === 0 && relatedState[momentId]?.status === 'empty') {
+      setRecommendationState((current) => ({
+        ...current,
+        [momentId]: { status: 'ready', groups: instantGroups, refining: false },
+      }))
+      return
+    }
     try {
       const groups = await recommendRelatedContent(moment, selectedOpinions)
+      if (recommendationRequests.current[momentId] !== requestToken) return
       const mappedGroups = Object.fromEntries(
         Object.entries(groups).map(([stance, items]) => [
           stance,
@@ -249,6 +267,7 @@ export default function Reading() {
                 ...item,
                 related: personalized,
                 relatedCount: personalized.length,
+                participants: countRelatedAuthors(personalized),
                 closestQuote: mappedGroups.same?.[0]
                   ? {
                       text: mappedGroups.same[0].quote || mappedGroups.same[0].title,
@@ -266,13 +285,14 @@ export default function Reading() {
         [momentId]: { status: 'ready', groups: mappedGroups, refining: false },
       }))
     } catch (error) {
+      if (recommendationRequests.current[momentId] !== requestToken) return
       setRecommendationState((current) => ({
         ...current,
         [momentId]: {
           status: 'ready',
           groups: current[momentId]?.groups || instantGroups,
           refining: false,
-          refinementError: error.message,
+          refinementError: `${error.code || 'RECOMMENDATION_FAILED'}：${error.message}`,
         },
       }))
     }
@@ -356,7 +376,7 @@ export default function Reading() {
           </div>
           <p className="pane-sub">这些片段，正在被讨论</p>
           {analysisMode === 'fallback' && (
-            <p className="pane-sub" role="status">当前为示例观点，实时分析暂不可用。</p>
+            <p className="pane-sub" role="status">当前为示例观点，实时分析暂不可用：{analysisError}</p>
           )}
 
           {loading ? (
@@ -402,6 +422,9 @@ export default function Reading() {
               </div>
 
               {!submitted && <div className="related-list">
+                {relatedState[activeMoment.id]?.status === 'empty' && (
+                  <div className="related-status">已尝试主题词和核心问题，暂未找到相关内容。</div>
+                )}
                 {relatedState[activeMoment.id]?.status === 'loading' && (
                   <div className="related-status">正在从知乎检索相关真实表达…</div>
                 )}
@@ -446,7 +469,7 @@ export default function Reading() {
                   <button
                     type="button"
                     className="btn btn-primary btn-block"
-                    disabled={selectedVotes.length === 0}
+                    disabled={selectedVotes.length === 0 || relatedState[activeMoment.id]?.status === 'loading'}
                     onClick={submitVote}
                   >
                     提交我的选择
@@ -480,7 +503,7 @@ export default function Reading() {
                       )}
                       {activeRecommendation.refinementError && (
                         <div className="recommendation-status error">
-                          已展示相关内容；本次观点精排暂未完成。
+                          本次观点精排暂未完成：{activeRecommendation.refinementError}
                         </div>
                       )}
                       <RecommendationGroup
@@ -507,7 +530,7 @@ export default function Reading() {
                     <button
                       type="button"
                       className="btn btn-primary"
-                      disabled={activeRecommendation?.status === 'loading'}
+                      disabled={activeRecommendation?.refining || relatedState[activeMoment.id]?.status === 'loading'}
                       onClick={() => openDiscussionSpace(activeMoment, article, selectedVotes)}
                     >
                       进入讨论空间
@@ -516,6 +539,7 @@ export default function Reading() {
                       type="button"
                       className="btn btn-ghost"
                       onClick={() => {
+                        delete recommendationRequests.current[activeMoment.id]
                         setSubmitted(false)
                         setSelectedVotes([])
                       }}

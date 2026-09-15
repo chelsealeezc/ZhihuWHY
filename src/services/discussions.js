@@ -67,10 +67,10 @@ export function analyzeArticle(article) {
   return analysisRequests.get(key)
 }
 
-export function searchRelatedContent(query, count = 4) {
-  const key = `${query}:${count}`
+export function searchRelatedContent(query, count = 4, fallback = '') {
+  const key = `${query}:${count}:${fallback}`
   if (!searchRequests.has(key)) {
-    const request = fetch(`/api/zhihu/search?${new URLSearchParams({ query, count })}`)
+    const request = fetch(`/api/zhihu/search?${new URLSearchParams({ query, count, fallback })}`)
       .then(readApiResponse)
       .then((data) => data.items)
       .catch((error) => {
@@ -89,7 +89,7 @@ export async function recommendRelatedContent(moment, selectedOpinions) {
     body: JSON.stringify({
       moment: {
         coreQuestion: moment.coreQuestion,
-        searchQuery: moment.searchQuery,
+        searchQuery: moment.searchQuery || moment.coreQuestion,
       },
       selectedOpinions,
       candidates: Array.isArray(moment.related) ? moment.related.slice(0, 10) : [],
