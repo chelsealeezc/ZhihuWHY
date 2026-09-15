@@ -92,6 +92,7 @@ export async function recommendRelatedContent(moment, selectedOpinions) {
         searchQuery: moment.searchQuery,
       },
       selectedOpinions,
+      candidates: Array.isArray(moment.related) ? moment.related.slice(0, 10) : [],
     }),
   })
   const data = await readApiResponse(response)

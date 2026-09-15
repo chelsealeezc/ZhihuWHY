@@ -168,7 +168,10 @@ const server = http.createServer(async (req, res) => {
             status: 400,
           })
         }
-        const search = await searchZhihu(body.moment?.searchQuery, 10)
+        const suppliedCandidates = Array.isArray(body.candidates) ? body.candidates.slice(0, 10) : []
+        const search = suppliedCandidates.length > 0
+          ? { items: suppliedCandidates, searchHashId: null }
+          : await searchZhihu(body.moment?.searchQuery, 10)
         const groups = await classifyRelatedContent(body.moment, body.selectedOpinions, search.items)
         return json(res, 200, { ok: true, groups, searchHashId: search.searchHashId })
       } catch (e) {

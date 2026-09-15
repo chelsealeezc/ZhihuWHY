@@ -210,10 +210,20 @@ export default function Reading() {
     const selectedOpinions = selectedVotes
       .map((id) => moment.voteOptions.find((option) => option.id === id)?.label)
       .filter(Boolean)
+    const instantRelated = Array.isArray(moment.related) ? moment.related : []
+    const instantGroups = {
+      same: [],
+      different: [],
+      neutral: instantRelated.map((item) => ({
+        ...item,
+        stance: 'neutral',
+        why: item.why || '先展示已加载的知乎真实内容，正在后台判断与所选观点的关系。',
+      })),
+    }
     setSubmitted(true)
     setRecommendationState((current) => ({
       ...current,
-      [momentId]: { status: 'loading', groups: null },
+      [momentId]: { status: 'ready', groups: instantGroups, refining: true },
     }))
     try {
       const groups = await recommendRelatedContent(moment, selectedOpinions)
@@ -249,12 +259,17 @@ export default function Reading() {
       )
       setRecommendationState((current) => ({
         ...current,
-        [momentId]: { status: 'ready', groups: mappedGroups },
+        [momentId]: { status: 'ready', groups: mappedGroups, refining: false },
       }))
     } catch (error) {
       setRecommendationState((current) => ({
         ...current,
-        [momentId]: { status: 'error', message: error.message },
+        [momentId]: {
+          status: 'ready',
+          groups: current[momentId]?.groups || instantGroups,
+          refining: false,
+          refinementError: error.message,
+        },
       }))
     }
   }
@@ -461,6 +476,16 @@ export default function Reading() {
                   )}
                   {activeRecommendation?.status === 'ready' && (
                     <div className="recommendation-results">
+                      {activeRecommendation.refining && (
+                        <div className="recommendation-status">
+                          已先展示相关内容，正在后台优化相近与不同观点…
+                        </div>
+                      )}
+                      {activeRecommendation.refinementError && (
+                        <div className="recommendation-status error">
+                          已展示相关内容；本次观点精排暂未完成。
+                        </div>
+                      )}
                       <RecommendationGroup
                         title="和你相近的观点"
                         tone="same"
