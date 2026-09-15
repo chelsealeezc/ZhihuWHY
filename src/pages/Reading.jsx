@@ -100,7 +100,6 @@ export default function Reading() {
   const [loading, setLoading] = useState(true)
   const [moments, setMoments] = useState(fallbackMoments)
   const [analysisMode, setAnalysisMode] = useState('loading')
-  const [analysisMessage, setAnalysisMessage] = useState('')
   const [relatedState, setRelatedState] = useState({})
   const [activeMomentId, setActiveMomentId] = useState(fallbackMoments[0]?.id)
   const [selectedVotes, setSelectedVotes] = useState([])
@@ -123,7 +122,6 @@ export default function Reading() {
     setMoments(fallbackMoments)
     setActiveMomentId(fallbackMoments[0]?.id)
     setAnalysisMode('loading')
-    setAnalysisMessage('')
     setRelatedState({})
     setRecommendationState({})
     let cancelled = false
@@ -138,10 +136,9 @@ export default function Reading() {
         setActiveMomentId(liveMoments[0]?.id)
         setAnalysisMode('live')
       })
-      .catch((error) => {
+      .catch(() => {
         if (cancelled) return
         setAnalysisMode('fallback')
-        setAnalysisMessage(error.message)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -286,14 +283,10 @@ export default function Reading() {
   const activeRecommendation = recommendationState[activeMoment.id]
 
   return (
-    <div className="app-shell">
-      <Topbar />
+    <div className="app-shell reading-shell">
+      <Topbar classic />
       <div className="read-layout">
         <article className="card article-pane">
-          <div className="article-topline">
-            <span className="content-badge">回答</span>
-            <span>Echo in Zhihu / 阅读</span>
-          </div>
           <h1 className="question">{article.question}</h1>
           <div className="author-row">
             <div className="avatar">{article.author.name.slice(0, 1)}</div>
@@ -360,17 +353,14 @@ export default function Reading() {
             <h2>答主的看法</h2>
             <span className="beta">Beta</span>
           </div>
-          <p className="pane-sub">
-            {analysisMode === 'live'
-              ? `${moments.length} 个答主观点，等你选一个`
-              : analysisMode === 'fallback'
-                ? `展示 ${moments.length} 个示例观点 · ${analysisMessage}`
-                : '正在整理可讨论的段落…'}
-          </p>
+          <p className="pane-sub">这些片段，正在被讨论</p>
+          {analysisMode === 'fallback' && (
+            <p className="pane-sub" role="status">当前为示例观点，实时分析暂不可用。</p>
+          )}
 
           {loading ? (
             <div className="loading-box">
-              正在整理可讨论的段落…
+              正在整理讨论瞬间…
               <div className="loading-bar">
                 <i />
               </div>
@@ -392,10 +382,7 @@ export default function Reading() {
               </div>
 
               <div className="core-card">
-                <div className="core-card-head">
-                  <div className="tag">答主的核心看法</div>
-                  <span className="core-index">{String(activeMoment.index).padStart(2, '0')}</span>
-                </div>
+                <div className="tag">核心观点</div>
                 <h3>{activeMoment.coreQuestion}</h3>
                 <p>{activeMoment.summary}</p>
                 <div className="core-meta">
@@ -415,11 +402,11 @@ export default function Reading() {
 
               {!submitted && <div className="related-list">
                 {relatedState[activeMoment.id]?.status === 'loading' && (
-                  <div className="related-status">正在找相关回答…</div>
+                  <div className="related-status">正在从知乎检索相关真实表达…</div>
                 )}
                 {relatedState[activeMoment.id]?.status === 'error' && (
                   <div className="related-status error">
-                    相关内容暂时不可用：{relatedState[activeMoment.id].message}
+                    真实内容暂未加载：{relatedState[activeMoment.id].message}
                   </div>
                 )}
                 {activeMoment.related.map((item) => (
@@ -435,17 +422,14 @@ export default function Reading() {
                       {item.author} · {item.voteup} 赞同
                     </div>
                     {item.quote && <div className="quote">“{item.quote}”</div>}
-                    <div className="why">关联原因：{item.why}</div>
+                    <div className="why">为什么相关：{item.why}</div>
                   </div>
                 ))}
               </div>}
 
               {!submitted ? (
                 <div className="vote-block">
-                  <div className="vote-heading">
-                    <h4>你怎么看？</h4>
-                    <span>最多选 2 项</span>
-                  </div>
+                  <h4>你更接近哪一种看法？（可多选，最多 2 项）</h4>
                   <div className="vote-grid">
                     {activeMoment.voteOptions.map((opt) => (
                       <button
@@ -464,7 +448,7 @@ export default function Reading() {
                     disabled={selectedVotes.length === 0}
                     onClick={submitVote}
                   >
-                    加入讨论
+                    提交我的选择
                   </button>
                 </div>
               ) : (
@@ -525,23 +509,7 @@ export default function Reading() {
                       disabled={activeRecommendation?.status === 'loading'}
                       onClick={() => openDiscussionSpace(activeMoment, article, selectedVotes)}
                     >
-                      进入讨论空间（新标签页）
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      disabled={activeRecommendation?.status === 'loading'}
-                      onClick={() => openDiscussionSpace(activeMoment, article, selectedVotes, 'same')}
-                    >
-                      看看和我最像的人怎么说
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      disabled={activeRecommendation?.status === 'loading'}
-                      onClick={() => openDiscussionSpace(activeMoment, article, selectedVotes, 'diff')}
-                    >
-                      看看和我最不一样的人怎么说
+                      进入讨论空间
                     </button>
                     <button
                       type="button"

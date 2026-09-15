@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 
-export default function Topbar({ compact = false }) {
+export default function Topbar({ compact = false, classic = false }) {
   const { user, login, logout, loginError } = useAuth()
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
@@ -22,12 +22,12 @@ export default function Topbar({ compact = false }) {
   }
 
   return (
-    <header className="topbar">
+    <header className={`topbar${classic ? ' topbar-classic' : ''}`}>
       <Link to="/" className="topbar-brand">
         <span className="logo-mark">知</span>
         <span className="brand-name">
-          <span>知乎 · 回响</span>
-          <small>Echo in Zhihu</small>
+          <span>知乎回响</span>
+          {!classic && <small>Echo in Zhihu</small>}
         </span>
         <span className="beta">Beta</span>
       </Link>
