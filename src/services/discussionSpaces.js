@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'zhihuwhy:discussion-spaces:v2'
+const STORAGE_KEY = 'zhihuwhy:discussion-spaces:v3'
 
 function readStore() {
   try {
@@ -34,7 +34,10 @@ export function saveDiscussionSpace(moment, article, selectedChoices) {
             ? 'diff'
             : 'same',
     stanceOptionId: options[index % Math.max(options.length, 1)]?.id,
-    text: item.quote || item.title,
+    text: item.claim || item.why || item.title || '该内容与当前讨论相关。',
+    sourceExcerpt: item.quote || '',
+    sourceTitle: item.title || '知乎内容',
+    refined: true,
     agree: Number(item.voteup) || 0,
     url: item.url || '',
     real: true,

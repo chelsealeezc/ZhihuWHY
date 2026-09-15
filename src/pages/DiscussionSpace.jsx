@@ -42,6 +42,19 @@ function normalizeClaim(value) {
     .replace(/[。！？!?]+$/, '')
 }
 
+function sourceUrlWithTextFragment(url, excerpt) {
+  if (!url) return ''
+  const text = String(excerpt || '').replace(/\s+/g, ' ').trim().slice(0, 100)
+  if (!text) return url
+  try {
+    const parsed = new URL(url)
+    parsed.hash = ''
+    return `${parsed.toString()}#:~:text=${encodeURIComponent(text)}`
+  } catch {
+    return url
+  }
+}
+
 function createPersona(person, posts) {
   const preset = PERSONA_PRESETS[person.name] || {}
   const evidence = posts.filter((post) => post.user === person.name)
@@ -79,6 +92,7 @@ export default function DiscussionSpace() {
   const [localPosts, setLocalPosts] = useState([])
   const [composerMessage, setComposerMessage] = useState('')
   const [agreedPosts, setAgreedPosts] = useState(() => new Set())
+  const [expandedSources, setExpandedSources] = useState(() => new Set())
   const [activePersona, setActivePersona] = useState(() => {
     const first = space.worthChat?.[0]
     return first ? createPersona(first, space.posts || []) : null
@@ -141,6 +155,15 @@ export default function DiscussionSpace() {
 
   function toggleAgree(postId) {
     setAgreedPosts((current) => {
+      const next = new Set(current)
+      if (next.has(postId)) next.delete(postId)
+      else next.add(postId)
+      return next
+    })
+  }
+
+  function toggleSource(postId) {
+    setExpandedSources((current) => {
       const next = new Set(current)
       if (next.has(postId)) next.delete(postId)
       else next.add(postId)
@@ -276,8 +299,11 @@ export default function DiscussionSpace() {
             {posts.length === 0 && (
               <div className="card empty-feed">这个筛选下暂时没有观点，换个筛选看看。</div>
             )}
-            {posts.map((post) => (
-              <article key={post.id} className="card post-card">
+            {posts.map((post) => {
+              const refined = post.refined || (post.user !== '我' && Boolean(post.sourceExcerpt))
+              const sourceExpanded = expandedSources.has(post.id)
+              const sourceUrl = sourceUrlWithTextFragment(post.url, post.sourceExcerpt)
+              return <article key={post.id} className="card post-card">
                 <div className="post-head">
                   <div className="avatar sm">{post.user.slice(0, 1)}</div>
                   <div>
@@ -294,7 +320,31 @@ export default function DiscussionSpace() {
                         : '立场不明'}
                   </span>
                 </div>
+                {refined && (
+                  <div className="refined-notice">
+                    <span>AI 提炼观点</span>
+                    以下是根据公开内容提炼的表达，不是答主原话
+                  </div>
+                )}
                 <p className="body">{post.text}</p>
+                {refined && sourceExpanded && (
+                  <div className="source-evidence">
+                    <div className="source-evidence-title">
+                      <span>原文依据</span>
+                      {post.sourceTitle && <strong>《{post.sourceTitle}》</strong>}
+                    </div>
+                    {post.sourceExcerpt ? (
+                      <blockquote>“{post.sourceExcerpt}”</blockquote>
+                    ) : (
+                      <p>当前演示数据没有保留可定位的原文摘录。</p>
+                    )}
+                    {sourceUrl && (
+                      <a href={sourceUrl} target="_blank" rel="noreferrer">
+                        {post.sourceExcerpt ? '在知乎原文中定位' : '打开知乎原文'}
+                      </a>
+                    )}
+                  </div>
+                )}
                 <div className="post-actions">
                   <button
                     type="button"
@@ -310,14 +360,22 @@ export default function DiscussionSpace() {
                   <button type="button" onClick={() => focusComposer('all')}>
                     回应
                   </button>
-                  {post.url && (
-                    <a href={post.url} target="_blank" rel="noreferrer">
-                      查看原文
-                    </a>
+                  {refined && (
+                    <button
+                      type="button"
+                      className="source-toggle"
+                      aria-expanded={sourceExpanded}
+                      onClick={() => toggleSource(post.id)}
+                    >
+                      {sourceExpanded ? '收起原文依据' : '定位原文依据'}
+                    </button>
+                  )}
+                  {!refined && post.url && (
+                    <a href={post.url} target="_blank" rel="noreferrer">查看原文</a>
                   )}
                 </div>
               </article>
-            ))}
+            })}
           </div>
 
           <form className="composer" onSubmit={submitPost}>
