@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'zhihuwhy:discussion-spaces:v1'
+const STORAGE_KEY = 'zhihuwhy:discussion-spaces:v2'
 
 function readStore() {
   try {
@@ -57,6 +57,7 @@ export function saveDiscussionSpace(moment, article, selectedChoices) {
     worthChat: related.slice(0, 3).map((item, index) => ({
       id: `chat-${item.id || index}`,
       name: item.author || '知乎用户',
+      claim: item.claim || item.why || item.title,
       snippet: item.stance === 'diff' || item.stance === 'different'
         ? '相关表达 · 与你存在分歧'
         : item.stance === 'same'
@@ -66,7 +67,7 @@ export function saveDiscussionSpace(moment, article, selectedChoices) {
             : index % 3 === 1
               ? '相关表达 · 与你可能存在分歧'
               : '相关表达 · 与你的选择可能相近',
-      evidence: [item.quote || item.title, item.why].filter(Boolean),
+      evidence: [item.quote || item.title].filter(Boolean),
     })),
     sources: [
       {

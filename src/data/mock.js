@@ -376,6 +376,7 @@ export const discussionSpaces = {
       {
         id: 'c1',
         name: '阿北',
+        claim: '没有反馈时的坚持更能决定执行力',
         snippet: '坚持意志力派 · 与你分歧明显',
         evidence: [
           '正反馈当然重要，但总有一段窗口期没有反馈。扛过去靠的就是意志和承诺。',
@@ -385,6 +386,7 @@ export const discussionSpaces = {
       {
         id: 'c2',
         name: '周然',
+        claim: '环境设计比每天消耗意志力更重要',
         snippet: '环境设计派 · 可聊「反馈 vs 环境」',
         evidence: [
           '把手机拿远、把任务放进日历、把第一步缩到两分钟。反馈是结果，环境是杠杆。',
@@ -393,6 +395,7 @@ export const discussionSpaces = {
       {
         id: 'c3',
         name: '清禾',
+        claim: '很多拖延的根源是对外界评价的恐惧',
         snippet: '评价焦虑视角 · 互补角度',
         evidence: [
           '我不是懒，是怕交出去的东西配不上别人对我的想象。',
