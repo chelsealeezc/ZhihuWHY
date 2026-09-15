@@ -1,6 +1,6 @@
 import { aiConfig } from './config.mjs'
 
-const AI_TIMEOUT_MS = 30_000
+const AI_TIMEOUT_MS = 90_000
 
 function requireAiConfig() {
   if (!aiConfig.apiKey) {
@@ -142,14 +142,14 @@ export async function classifyRelatedContent(moment, selectedOpinions, candidate
     })
   } catch (error) {
     const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError'
-    throw Object.assign(new Error(timedOut ? '立场分类超过 30 秒' : 'AI 立场分类服务暂时无法连接'), {
+    throw Object.assign(new Error(timedOut ? '立场分类超过 90 秒' : 'AI 立场分类服务暂时无法连接'), {
       code: timedOut ? 'AI_TIMEOUT' : 'AI_REQUEST_FAILED',
       status: timedOut ? 504 : 502,
     })
   }
   const payload = await response.json().catch((error) => {
     const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError'
-    throw Object.assign(new Error(timedOut ? 'AI 响应超过 30 秒' : 'AI 响应不是有效 JSON'), {
+    throw Object.assign(new Error(timedOut ? 'AI 响应超过 90 秒' : 'AI 响应不是有效 JSON'), {
       code: timedOut ? 'AI_TIMEOUT' : 'AI_OUTPUT_INVALID',
       status: timedOut ? 504 : 502,
     })
@@ -203,7 +203,7 @@ export async function analyzeArticle(article) {
     })
   } catch (error) {
     if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
-      throw Object.assign(new Error('AI 分析超过 30 秒，已切换为示例讨论瞬间'), {
+      throw Object.assign(new Error('AI 分析超过 90 秒，已切换为示例讨论瞬间'), {
         code: 'AI_TIMEOUT',
         status: 504,
       })
@@ -215,7 +215,7 @@ export async function analyzeArticle(article) {
   }
   const payload = await response.json().catch((error) => {
     const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError'
-    throw Object.assign(new Error(timedOut ? 'AI 响应超过 30 秒' : 'AI 响应不是有效 JSON'), {
+    throw Object.assign(new Error(timedOut ? 'AI 响应超过 90 秒' : 'AI 响应不是有效 JSON'), {
       code: timedOut ? 'AI_TIMEOUT' : 'AI_OUTPUT_INVALID',
       status: timedOut ? 504 : 502,
     })
@@ -263,7 +263,7 @@ export async function chatWithPersona({ persona, messages }) {
   }
   const payload = await response.json().catch((error) => {
     const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError'
-    throw Object.assign(new Error(timedOut ? 'AI 响应超过 30 秒' : 'AI 响应不是有效 JSON'), {
+    throw Object.assign(new Error(timedOut ? 'AI 响应超过 90 秒' : 'AI 响应不是有效 JSON'), {
       code: timedOut ? 'AI_TIMEOUT' : 'AI_OUTPUT_INVALID',
       status: timedOut ? 504 : 502,
     })
