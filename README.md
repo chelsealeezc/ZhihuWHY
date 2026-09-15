@@ -1,5 +1,9 @@
 # 知乎 · 回响（Echo in Zhihu）
 
+[![知乎 · 回响产品演示视频封面](docs/assets/youtube-cover.jpg)](https://youtu.be/rXx1EcoeRls?si=SRBw2-Ue9deHvdi1)
+
+▶ [观看产品演示视频（YouTube）](https://youtu.be/rXx1EcoeRls?si=SRBw2-Ue9deHvdi1)
+
 > 把值得在意的一句话，继续读成一场讨论。
 
 知乎·回响是一款基于知乎内容的片段级讨论发现与连接产品。它用 AI 从长回答中识别三至六个值得展开的见解，检索知乎站内相关内容，让用户沿着具体观点进入有来源、有差异的讨论。
