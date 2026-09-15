@@ -44,6 +44,7 @@ function mapRelatedItem(item, moment) {
     comments: item.comments,
     stance: item.stance === 'different' ? 'diff' : item.stance,
     claim: item.claim,
+    viewpoint: item.viewpoint,
     relevanceScore: item.relevanceScore,
     why: item.reason || `围绕「${moment.searchQuery}」提供了相关观点或真实经历。`,
   }

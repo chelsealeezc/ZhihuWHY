@@ -34,7 +34,7 @@ export function saveDiscussionSpace(moment, article, selectedChoices) {
             ? 'diff'
             : 'same',
     stanceOptionId: options[index % Math.max(options.length, 1)]?.id,
-    text: item.claim || item.why || item.title || '该内容与当前讨论相关。',
+    text: item.viewpoint || item.claim || item.why || item.title || '该内容与当前讨论相关。',
     sourceExcerpt: item.quote || '',
     sourceTitle: item.title || '知乎内容',
     refined: true,
