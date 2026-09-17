@@ -50,6 +50,36 @@ function mapRelatedItem(item, moment) {
   }
 }
 
+function createSelectionMoment(text, anchorParagraphId) {
+  const normalized = String(text || '').replace(/\s+/g, ' ').trim()
+  return {
+    id: `selection-${Date.now()}`,
+    index: 0,
+    title: '你选中的一句话',
+    coreQuestion: '围绕这句话，知乎上还有哪些相近或不同的理解？',
+    summary: '这是你从原文中主动挑出的表达。下面先检索知乎上的真实内容，再根据你的选择整理观点关系。',
+    searchQuery: normalized.slice(0, 120),
+    selectedText: normalized,
+    anchorParagraphId,
+    voteOptions: [
+      { id: 'v1', label: '我基本认同这句话' },
+      { id: 'v2', label: '我对这句话有保留' },
+      { id: 'v3', label: '要看具体情境' },
+    ],
+    voteResults: { v1: 0, v2: 0, v3: 0 },
+    relatedCount: 0,
+    participants: 0,
+    related: [],
+    closestQuote: {
+      text: '检索后，这里会展示与你选中的句子最相关的知乎表达。',
+      author: '观点引力场',
+      source: '相关讨论',
+      voteup: 0,
+    },
+    source: 'selection',
+  }
+}
+
 function RecommendationGroup({ title, tone, items }) {
   return (
     <section className={`recommendation-group ${tone}`}>
@@ -110,13 +140,70 @@ export default function Reading() {
   const [anchorId, setAnchorId] = useState(null)
   const [endorsed, setEndorsed] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [selectionAction, setSelectionAction] = useState(null)
+  const [selectionMoment, setSelectionMoment] = useState(null)
+  const articleBodyRef = useRef(null)
   const paragraphRefs = useRef({})
   const recommendationRequests = useRef({})
 
   const activeMoment = useMemo(
-    () => moments.find((m) => m.id === activeMomentId) || moments[0],
-    [moments, activeMomentId],
+    () => [selectionMoment, ...moments].find((m) => m?.id === activeMomentId) || moments[0],
+    [moments, selectionMoment, activeMomentId],
   )
+
+  const visibleMoments = useMemo(
+    () => (selectionMoment ? [selectionMoment, ...moments] : moments),
+    [moments, selectionMoment],
+  )
+
+  function updateMoment(momentId, updater) {
+    setMoments((current) => current.map((moment) => (
+      moment.id === momentId ? updater(moment) : moment
+    )))
+    setSelectionMoment((current) => (
+      current?.id === momentId ? updater(current) : current
+    ))
+  }
+
+  useEffect(() => {
+    const updateSelectionAction = () => {
+      const selection = window.getSelection()
+      const body = articleBodyRef.current
+      if (!selection || selection.isCollapsed || !body || selection.rangeCount === 0) {
+        setSelectionAction(null)
+        return
+      }
+      const range = selection.getRangeAt(0)
+      if (!body.contains(range.commonAncestorContainer)) {
+        setSelectionAction(null)
+        return
+      }
+      const text = selection.toString().replace(/\s+/g, ' ').trim()
+      if (text.length < 8) {
+        setSelectionAction(null)
+        return
+      }
+      const startNode = range.startContainer.nodeType === Node.ELEMENT_NODE
+        ? range.startContainer
+        : range.startContainer.parentElement
+      const paragraph = startNode?.closest?.('[data-paragraph-id]')
+      const rect = range.getBoundingClientRect()
+      setSelectionAction({
+        text,
+        paragraphId: paragraph?.dataset.paragraphId || null,
+        top: Math.max(12, rect.top - 48),
+        left: Math.min(Math.max(12, rect.left), Math.max(12, window.innerWidth - 236)),
+      })
+    }
+    document.addEventListener('selectionchange', updateSelectionAction)
+    window.addEventListener('mouseup', updateSelectionAction)
+    window.addEventListener('keyup', updateSelectionAction)
+    return () => {
+      document.removeEventListener('selectionchange', updateSelectionAction)
+      window.removeEventListener('mouseup', updateSelectionAction)
+      window.removeEventListener('keyup', updateSelectionAction)
+    }
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -126,6 +213,8 @@ export default function Reading() {
     setActiveMomentId(fallbackMoments[0]?.id)
     setAnalysisMode('loading')
     setAnalysisError('')
+    setSelectionAction(null)
+    setSelectionMoment(null)
     setRelatedState({})
     setRecommendationState({})
     recommendationRequests.current = {}
@@ -166,26 +255,20 @@ export default function Reading() {
     setRelatedState((current) => ({ ...current, [momentId]: { status: 'loading' } }))
     searchRelatedContent(activeMoment.searchQuery || activeMoment.coreQuestion, 4, activeMoment.coreQuestion)
       .then((items) => {
-        setMoments((current) =>
-          current.map((moment) =>
-            moment.id === momentId
-              ? {
-                  ...moment,
-                  related: items.slice(0, 4).map((item) => mapRelatedItem(item, moment)),
-                  relatedCount: items.length,
-                  participants: countRelatedAuthors(items.slice(0, 4)),
-                  closestQuote: items[0]
-                    ? {
-                        text: items[0].quote || items[0].title,
-                        author: items[0].author,
-                        source: `《${items[0].title}》`,
-                        voteup: items[0].voteup,
-                      }
-                    : moment.closestQuote,
-                }
-              : moment,
-          ),
-        )
+        updateMoment(momentId, (moment) => ({
+          ...moment,
+          related: items.slice(0, 4).map((item) => mapRelatedItem(item, moment)),
+          relatedCount: items.length,
+          participants: countRelatedAuthors(items.slice(0, 4)),
+          closestQuote: items[0]
+            ? {
+                text: items[0].quote || items[0].title,
+                author: items[0].author,
+                source: `《${items[0].title}》`,
+                voteup: items[0].voteup,
+              }
+            : moment.closestQuote,
+        }))
         setRelatedState((current) => ({ ...current, [momentId]: { status: items.length ? 'ready' : 'empty' } }))
       })
       .catch((error) => {
@@ -231,9 +314,7 @@ export default function Reading() {
     }
     const requestToken = {}
     recommendationRequests.current[momentId] = requestToken
-    setMoments((current) => current.map((item) => item.id === momentId
-      ? { ...item, related: instantGroups.neutral }
-      : item))
+    updateMoment(momentId, (item) => ({ ...item, related: instantGroups.neutral }))
     setSubmitted(true)
     setRecommendationState((current) => ({
       ...current,
@@ -260,26 +341,20 @@ export default function Reading() {
         ...(mappedGroups.different || []),
         ...(mappedGroups.neutral || []),
       ]
-      setMoments((current) =>
-        current.map((item) =>
-          item.id === momentId
-            ? {
-                ...item,
-                related: personalized,
-                relatedCount: personalized.length,
-                participants: countRelatedAuthors(personalized),
-                closestQuote: mappedGroups.same?.[0]
-                  ? {
-                      text: mappedGroups.same[0].quote || mappedGroups.same[0].title,
-                      author: mappedGroups.same[0].author,
-                      source: `《${mappedGroups.same[0].title}》`,
-                      voteup: mappedGroups.same[0].voteup,
-                    }
-                  : item.closestQuote,
-              }
-            : item,
-        ),
-      )
+      updateMoment(momentId, (item) => ({
+        ...item,
+        related: personalized,
+        relatedCount: personalized.length,
+        participants: countRelatedAuthors(personalized),
+        closestQuote: mappedGroups.same?.[0]
+          ? {
+              text: mappedGroups.same[0].quote || mappedGroups.same[0].title,
+              author: mappedGroups.same[0].author,
+              source: `《${mappedGroups.same[0].title}》`,
+              voteup: mappedGroups.same[0].voteup,
+            }
+          : item.closestQuote,
+      }))
       setRecommendationState((current) => ({
         ...current,
         [momentId]: { status: 'ready', groups: mappedGroups, refining: false },
@@ -296,6 +371,17 @@ export default function Reading() {
         },
       }))
     }
+  }
+
+  function openSelectionDiscussion() {
+    if (!selectionAction?.text) return
+    const moment = createSelectionMoment(selectionAction.text, selectionAction.paragraphId)
+    setSelectionMoment(moment)
+    setActiveMomentId(moment.id)
+    setSelectedVotes([])
+    setSubmitted(false)
+    setSelectionAction(null)
+    window.getSelection()?.removeAllRanges()
   }
 
   const primaryChoice = selectedVotes[0]
@@ -323,7 +409,7 @@ export default function Reading() {
             </button>
           </div>
 
-          <div className="article-body">
+          <div className="article-body" ref={articleBodyRef}>
             {article.paragraphs.map((p) => {
               const sharedProps = {
                 ref: (element) => {
@@ -331,6 +417,7 @@ export default function Reading() {
                 },
                 className: `${anchorId === p.id ? 'anchor-active ' : ''}${p.momentId ? 'article-moment' : ''}`,
                 'data-moment': p.momentId || undefined,
+                'data-paragraph-id': p.id,
                 onClick: () => p.momentId && setActiveMomentId(p.momentId),
               }
               return p.kind === 'heading' ? (
@@ -340,6 +427,30 @@ export default function Reading() {
               )
             })}
           </div>
+          {article.sourceIncomplete && (
+            <div className="source-incomplete-notice" role="note">
+              <div>
+                <strong>当前文段是知乎返回的摘要</strong>
+                <span>省略部分未随数据返回，因此无法在本页直接展开。</span>
+              </div>
+              {article.sourceUrl && (
+                <a className="btn btn-secondary" href={article.sourceUrl} target="_blank" rel="noreferrer">
+                  展开并查看原文
+                </a>
+              )}
+            </div>
+          )}
+          {selectionAction && (
+            <button
+              type="button"
+              className="selection-discuss-action"
+              style={{ top: selectionAction.top, left: selectionAction.left }}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={openSelectionDiscussion}
+            >
+              看看知乎怎么讨论
+            </button>
+          )}
 
           <div className="article-actions">
             <button
@@ -389,7 +500,7 @@ export default function Reading() {
           ) : (
             <>
               <div className="moment-tabs">
-                {moments.map((m) => (
+                {visibleMoments.map((m) => (
                   <button
                     key={m.id}
                     type="button"
@@ -403,7 +514,10 @@ export default function Reading() {
               </div>
 
               <div className="core-card">
-                <div className="tag">核心观点</div>
+                <div className="tag">{activeMoment.source === 'selection' ? '你选中的原文' : '核心观点'}</div>
+                {activeMoment.source === 'selection' && (
+                  <blockquote className="selected-source-quote">“{activeMoment.selectedText}”</blockquote>
+                )}
                 <h3>{activeMoment.coreQuestion}</h3>
                 <p>{activeMoment.summary}</p>
                 <div className="core-meta">
