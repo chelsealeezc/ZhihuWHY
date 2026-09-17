@@ -25,6 +25,12 @@ test('unrefined authors retain distinct source text and unknown stance', () => {
   assert.equal(getSavedDiscussionSpace('test').worthChat[0].claim, related[0].quote)
 })
 
+test('pending classification state survives transfer to the discussion space', () => {
+  const space = saveDiscussionSpace(moment, article, ['v1'], { classificationStatus: 'pending' })
+  assert.equal(space.classificationStatus, 'pending')
+  assert.equal(getSavedDiscussionSpace('test').classificationStatus, 'pending')
+})
+
 test('refined viewpoint, source and stance survive transfer', () => {
   const space = saveDiscussionSpace({ ...moment, related: [
     { ...related[0], viewpoint: '即时反馈降低启动难度。', stance: 'same' },

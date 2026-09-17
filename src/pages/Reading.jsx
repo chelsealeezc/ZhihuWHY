@@ -82,13 +82,12 @@ function RecommendationGroup({ title, tone, items }) {
   )
 }
 
-function openDiscussionSpace(moment, article, selectedIds, filter) {
-  saveDiscussionSpace(moment, article, selectedIds)
+function openDiscussionSpace(moment, article, selectedIds, classificationStatus = 'ready') {
+  saveDiscussionSpace(moment, article, selectedIds, { classificationStatus })
   const base = import.meta.env.BASE_URL.replace(/\/$/, '')
   const params = new URLSearchParams({
     choices: selectedIds.join(','),
   })
-  if (filter) params.set('filter', filter)
   const url = `${window.location.origin}${base}/space/${moment.id}?${params}`
   window.open(url, '_blank', 'noopener,noreferrer')
 }
@@ -260,6 +259,12 @@ export default function Reading() {
         ...(mappedGroups.different || []),
         ...(mappedGroups.neutral || []),
       ]
+      saveDiscussionSpace(
+        { ...moment, related: personalized },
+        article,
+        selectedVotes,
+        { classificationStatus: 'ready' },
+      )
       setMoments((current) =>
         current.map((item) =>
           item.id === momentId
@@ -286,6 +291,12 @@ export default function Reading() {
       }))
     } catch (error) {
       if (recommendationRequests.current[momentId] !== requestToken) return
+      saveDiscussionSpace(
+        { ...moment, related: instantGroups.neutral },
+        article,
+        selectedVotes,
+        { classificationStatus: 'failed' },
+      )
       setRecommendationState((current) => ({
         ...current,
         [momentId]: {
@@ -530,7 +541,16 @@ export default function Reading() {
                     <button
                       type="button"
                       className="btn btn-primary"
-                      onClick={() => openDiscussionSpace(activeMoment, article, selectedVotes)}
+                      onClick={() => openDiscussionSpace(
+                        activeMoment,
+                        article,
+                        selectedVotes,
+                        activeRecommendation?.refining
+                          ? 'pending'
+                          : activeRecommendation?.refinementError
+                            ? 'failed'
+                            : 'ready',
+                      )}
                     >
                       进入讨论空间
                     </button>

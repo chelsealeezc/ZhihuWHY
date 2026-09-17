@@ -1,7 +1,13 @@
-const STORAGE_KEY = 'zhihuwhy:discussion-spaces:v3'
+export const DISCUSSION_SPACES_STORAGE_KEY = 'zhihuwhy:discussion-spaces:v3'
 
 function isGeneric(value) {
   return /提供了相关观点或真实经历|该内容与当前议题相关，但|先展示已加载的知乎真实内容/.test(String(value || ''))
+}
+
+function truncateText(value, maxLength = 50) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim()
+  if (text.length <= maxLength) return text
+  return `${text.slice(0, maxLength)}……`
 }
 
 function authorView(item) {
@@ -10,7 +16,7 @@ function authorView(item) {
 
 function readStore() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}
+    return JSON.parse(localStorage.getItem(DISCUSSION_SPACES_STORAGE_KEY)) || {}
   } catch {
     return {}
   }
@@ -23,7 +29,12 @@ function distributionFor(options, existing = {}) {
   )
 }
 
-export function saveDiscussionSpace(moment, article, selectedChoices) {
+export function saveDiscussionSpace(
+  moment,
+  article,
+  selectedChoices,
+  { classificationStatus = 'ready' } = {},
+) {
   const related = Array.isArray(moment.related) ? moment.related : []
   const options = moment.voteOptions || []
   const distribution = distributionFor(options, moment.voteResults)
@@ -67,7 +78,7 @@ export function saveDiscussionSpace(moment, article, selectedChoices) {
     worthChat: related.slice(0, 3).map((item, index) => ({
       id: `chat-${item.id || index}`,
       name: item.author || '知乎用户',
-      claim: authorView(item) || item.quote || item.title,
+      claim: authorView(item) || truncateText(item.quote || item.title),
       snippet: item.stance === 'diff' || item.stance === 'different'
         ? '相关表达 · 与你存在分歧'
         : item.stance === 'same'
@@ -96,6 +107,7 @@ export function saveDiscussionSpace(moment, article, selectedChoices) {
       })),
     ],
     selectedChoices,
+    classificationStatus,
     articleId: article.id,
     real: posts.length > 0,
     savedAt: Date.now(),
@@ -104,7 +116,7 @@ export function saveDiscussionSpace(moment, article, selectedChoices) {
   try {
     const store = readStore()
     store[moment.id] = context
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(store))
+    localStorage.setItem(DISCUSSION_SPACES_STORAGE_KEY, JSON.stringify(store))
   } catch {
     // DiscussionSpace will fall back to the bundled demo if storage is unavailable.
   }
