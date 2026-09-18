@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
+import SelectionGuide from '../components/SelectionGuide'
 import { getArticle, getMoments } from '../data/mock'
 import {
   analyzeArticle,
@@ -472,7 +473,13 @@ export default function Reading() {
             </button>
           </div>
 
-          <div className="article-body" ref={articleBodyRef}>
+          <p className="reading-selection-hint" id="reading-selection-hint">
+            <svg viewBox="0 0 20 20" width="16" height="16" fill="none" aria-hidden="true">
+              <path d="m5 12 7.5-7.5 3 3L8 15H5v-3ZM11 6l3 3M4 18h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            划选一句话，看看知乎怎么讨论
+          </p>
+          <div className="article-body" ref={articleBodyRef} aria-describedby="reading-selection-hint">
             {article.paragraphs.map((p) => {
               const sharedProps = {
                 ref: (element) => {
@@ -481,7 +488,9 @@ export default function Reading() {
                 className: `${anchorId === p.id ? 'anchor-active ' : ''}${p.momentId ? 'article-moment' : ''}`,
                 'data-moment': p.momentId || undefined,
                 'data-paragraph-id': p.id,
-                onClick: () => p.momentId && setActiveMomentId(p.momentId),
+                onClick: () => {
+                  if (window.getSelection()?.isCollapsed && p.momentId) setActiveMomentId(p.momentId)
+                },
               }
               return p.kind === 'heading' ? (
                 <h2 key={p.id} {...sharedProps}>{p.text}</h2>
@@ -489,6 +498,7 @@ export default function Reading() {
                 <p key={p.id} {...sharedProps}>{p.text}</p>
               )
             })}
+            <SelectionGuide key={article.id} articleId={article.id} bodyRef={articleBodyRef} />
           </div>
           {article.sourceIncomplete && (
             <div className="source-incomplete-notice" role="note">
@@ -562,12 +572,13 @@ export default function Reading() {
             </div>
           ) : (
             <>
-              <div className="moment-tabs">
+              <div className="moment-tabs" role="group" aria-label="选择一个观点">
                 {visibleMoments.map((m) => (
                   <button
                     key={m.id}
                     type="button"
                     className={`moment-tab${m.id === activeMoment.id ? ' active' : ''}`}
+                    aria-pressed={m.id === activeMoment.id}
                     onClick={() => setActiveMomentId(m.id)}
                   >
                     <span className="idx">{String(m.index).padStart(2, '0')}</span>
@@ -577,7 +588,7 @@ export default function Reading() {
               </div>
 
               <div className="core-card">
-                <div className="tag">{activeMoment.source === 'selection' ? '你选中的原文' : '核心观点'}</div>
+                <div className="tag">{activeMoment.source === 'selection' ? '你选中的原文' : '答主的核心看法'}</div>
                 {activeMoment.source === 'selection' && (
                   <blockquote className="selected-source-quote">“{activeMoment.selectedText}”</blockquote>
                 )}
