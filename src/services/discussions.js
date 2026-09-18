@@ -5,6 +5,7 @@ const ANALYSIS_CACHE_TTL = 24 * 60 * 60 * 1000
 // 客户端兜底超时：保证 loading 状态一定会结束，不会永久卡住界面。
 const SEARCH_TIMEOUT_MS = 20_000
 const RECOMMEND_TIMEOUT_MS = 100_000
+const SELECTION_TIMEOUT_MS = 30_000
 
 function toTimeoutError(error, code, message) {
   if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
@@ -94,6 +95,21 @@ export function searchRelatedContent(query, count = 4, fallback = '') {
     searchRequests.set(key, request)
   }
   return searchRequests.get(key)
+}
+
+export async function expandSelectedText(input) {
+  let response
+  try {
+    response = await fetch('/api/discussions/selection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+      signal: AbortSignal.timeout(SELECTION_TIMEOUT_MS),
+    })
+  } catch (error) {
+    throw toTimeoutError(error, 'SELECTION_TIMEOUT', '正在理解你选中的原文，请稍后重试。')
+  }
+  return readApiResponse(response)
 }
 
 export async function recommendRelatedContent(moment, selectedOpinions) {

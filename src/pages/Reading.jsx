@@ -4,6 +4,7 @@ import Topbar from '../components/Topbar'
 import { getArticle, getMoments } from '../data/mock'
 import {
   analyzeArticle,
+  expandSelectedText,
   recommendRelatedContent,
   searchRelatedContent,
 } from '../services/discussions'
@@ -50,7 +51,7 @@ function mapRelatedItem(item, moment) {
   }
 }
 
-function createSelectionMoment(text, anchorParagraphId) {
+function createSelectionMoment(text, anchorParagraphId, context = {}) {
   const normalized = String(text || '').replace(/\s+/g, ' ').trim()
   return {
     id: `selection-${Date.now()}`,
@@ -60,6 +61,9 @@ function createSelectionMoment(text, anchorParagraphId) {
     summary: '这是你从原文中主动挑出的表达。下面先检索知乎上的真实内容，再根据你的选择整理观点关系。',
     searchQuery: normalized.slice(0, 120),
     selectedText: normalized,
+    contextBefore: context.contextBefore || '',
+    contextAfter: context.contextAfter || '',
+    searchPending: true,
     anchorParagraphId,
     voteOptions: [
       { id: 'v1', label: '我基本认同这句话' },
@@ -199,6 +203,8 @@ export default function Reading() {
       setSelectionAction({
         text,
         paragraphId: paragraph?.dataset.paragraphId || null,
+        contextBefore: paragraph?.previousElementSibling?.textContent?.replace(/\s+/g, ' ').trim().slice(-240) || '',
+        contextAfter: paragraph?.nextElementSibling?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 240) || '',
         top: Math.max(12, rect.top - 48),
         left: Math.min(Math.max(12, rect.left), Math.max(12, window.innerWidth - 236)),
       })
@@ -258,7 +264,7 @@ export default function Reading() {
   }, [activeMomentId])
 
   useEffect(() => {
-    if (!activeMoment?.coreQuestion || relatedState[activeMoment.id]) return
+    if (!activeMoment?.coreQuestion || activeMoment.searchPending || relatedState[activeMoment.id]) return
     const momentId = activeMoment.id
     setRelatedState((current) => ({ ...current, [momentId]: { status: 'loading' } }))
     searchRelatedContent(activeMoment.searchQuery || activeMoment.coreQuestion, 4, activeMoment.coreQuestion)
@@ -393,15 +399,52 @@ export default function Reading() {
     }
   }
 
-  function openSelectionDiscussion() {
+  async function openSelectionDiscussion() {
     if (!selectionAction?.text) return
-    const moment = createSelectionMoment(selectionAction.text, selectionAction.paragraphId)
+    const action = selectionAction
+    const moment = createSelectionMoment(action.text, action.paragraphId, action)
     setSelectionMoment(moment)
     setActiveMomentId(moment.id)
     setSelectedVotes([])
     setSubmitted(false)
     setSelectionAction(null)
     window.getSelection()?.removeAllRanges()
+    setRelatedState((current) => ({
+      ...current,
+      [moment.id]: { status: 'expanding' },
+    }))
+    try {
+      const expansion = await expandSelectedText({
+        selectedText: action.text,
+        contextBefore: action.contextBefore,
+        contextAfter: action.contextAfter,
+        articleTitle: article.title || article.question,
+      })
+      setRelatedState((current) => {
+        const next = { ...current }
+        delete next[moment.id]
+        return next
+      })
+      updateMoment(moment.id, (current) => ({
+        ...current,
+        coreQuestion: expansion.coreQuestion,
+        searchQuery: expansion.searchQuery,
+        summary: expansion.summary,
+        searchPending: false,
+      }))
+    } catch (error) {
+      // Even if query expansion is unavailable, search Zhihu with the exact selected text.
+      setRelatedState((current) => {
+        const next = { ...current }
+        delete next[moment.id]
+        return next
+      })
+      updateMoment(moment.id, (current) => ({
+        ...current,
+        searchPending: false,
+        summary: `将按你选中的原文直接检索知乎内容。${error.message ? `（${error.message}）` : ''}`,
+      }))
+    }
   }
 
   const primaryChoice = selectedVotes[0]
@@ -561,6 +604,9 @@ export default function Reading() {
                 )}
                 {relatedState[activeMoment.id]?.status === 'loading' && (
                   <div className="related-status">正在从知乎检索相关真实表达…</div>
+                )}
+                {relatedState[activeMoment.id]?.status === 'expanding' && (
+                  <div className="related-status">正在根据你选中的原文生成知乎站内检索词…</div>
                 )}
                 {relatedState[activeMoment.id]?.status === 'error' && (
                   <div className="related-status error">

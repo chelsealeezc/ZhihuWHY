@@ -216,3 +216,33 @@ test('Vercel selection endpoint returns the same expansion contract', async () =
     })
   } finally { globalThis.fetch = old }
 })
+
+test('selection expansion endpoint receives selected text and its reading context', async () => {
+  const old = globalThis.fetch
+  let requestBody
+  globalThis.fetch = async (_url, options) => {
+    requestBody = JSON.parse(options.body)
+    return {
+      ok: true,
+      json: async () => ({
+        ok: true,
+        coreQuestion: '精准时间管理是高效还是过度控制？',
+        searchQuery: '时间管理 专注 效率',
+        summary: '不同人对精细安排的价值有不同判断。',
+      }),
+    }
+  }
+  try {
+    const { expandSelectedText } = await import('../src/services/discussions.js')
+    const result = await expandSelectedText({
+      selectedText: '他会谈的人都知道他的时间表精确到10分钟。',
+      contextBefore: '他的行程由助理安排。',
+      contextAfter: '他非常关注关键细节。',
+      articleTitle: '一天的时间管理',
+    })
+    assert.equal(result.searchQuery, '时间管理 专注 效率')
+    assert.match(requestBody.selectedText, /10分钟/)
+    assert.match(requestBody.contextBefore, /助理安排/)
+    assert.match(requestBody.contextAfter, /关键细节/)
+  } finally { globalThis.fetch = old }
+})
