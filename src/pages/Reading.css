@@ -389,6 +389,21 @@
   margin-bottom: 24px;
 }
 
+.content-list-toggle {
+  align-self: flex-start;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: var(--zh-blue);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.content-list-toggle:hover {
+  text-decoration: underline;
+}
+
 .related-item {
   padding: 16px;
   overflow-wrap: anywhere;

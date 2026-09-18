@@ -103,7 +103,32 @@ function compactViewpoint(value, maxLength = 40) {
   return `${text.slice(0, Math.max(1, maxLength - 2)).replace(/[，,;；。！？!?]+$/, '')}……`
 }
 
+function prioritizeDistinctTitles(items, visibleCount = 4) {
+  const seenTitles = new Set()
+  const distinct = []
+  const remaining = []
+
+  items.forEach((item) => {
+    const title = String(item.title || '').replace(/\s+/g, ' ').trim()
+    if (title && !seenTitles.has(title) && distinct.length < visibleCount) {
+      seenTitles.add(title)
+      distinct.push(item)
+    } else {
+      remaining.push(item)
+    }
+  })
+
+  return [...distinct, ...remaining]
+}
+
 function RecommendationGroup({ title, tone, items, refining = false }) {
+  const [expanded, setExpanded] = useState(false)
+  const orderedItems = useMemo(() => prioritizeDistinctTitles(items), [items])
+  const visibleItems = expanded ? orderedItems : orderedItems.slice(0, 4)
+  const hiddenCount = Math.max(0, orderedItems.length - 4)
+
+  useEffect(() => setExpanded(false), [items])
+
   return (
     <section className={`recommendation-group ${tone}`}>
       <div className="recommendation-heading">
@@ -113,7 +138,7 @@ function RecommendationGroup({ title, tone, items, refining = false }) {
       {items.length === 0 ? (
         <div className="recommendation-empty">暂时没有足够明确的内容</div>
       ) : (
-        items.map((item) => {
+        visibleItems.map((item) => {
           const refinedViewpoint = item.claim || item.quote
           const viewpoint = refinedViewpoint
             ? compactViewpoint(refinedViewpoint)
@@ -146,6 +171,11 @@ function RecommendationGroup({ title, tone, items, refining = false }) {
           )
         })
       )}
+      {hiddenCount > 0 && (
+        <button type="button" className="content-list-toggle" onClick={() => setExpanded((value) => !value)}>
+          {expanded ? '收起内容' : `展开剩余 ${hiddenCount} 篇`}
+        </button>
+      )}
     </section>
   )
 }
@@ -170,6 +200,7 @@ export default function Reading() {
   const [analysisMode, setAnalysisMode] = useState('loading')
   const [analysisError, setAnalysisError] = useState('')
   const [relatedState, setRelatedState] = useState({})
+  const [expandedRelatedMoments, setExpandedRelatedMoments] = useState({})
   const [activeMomentId, setActiveMomentId] = useState(fallbackMoments[0]?.id)
   const [selectedVotes, setSelectedVotes] = useState([])
   const [submitted, setSubmitted] = useState(false)
@@ -501,6 +532,10 @@ export default function Reading() {
   const primaryLabel = activeMoment.voteOptions.find((o) => o.id === primaryChoice)?.label
   const primaryPct = activeMoment.voteResults[primaryChoice] || 0
   const activeRecommendation = recommendationState[activeMoment.id]
+  const relatedItems = prioritizeDistinctTitles(activeMoment.related)
+  const relatedExpanded = Boolean(expandedRelatedMoments[activeMoment.id])
+  const visibleRelatedItems = relatedExpanded ? relatedItems : relatedItems.slice(0, 4)
+  const hiddenRelatedCount = Math.max(0, relatedItems.length - 4)
 
   return (
     <div className="app-shell reading-shell">
@@ -673,7 +708,7 @@ export default function Reading() {
                     真实内容暂未加载：{relatedState[activeMoment.id].message}
                   </div>
                 )}
-                {activeMoment.related.map((item) => (
+                {visibleRelatedItems.map((item) => (
                   <div key={item.id} className="related-item">
                     {item.url ? (
                       <a className="title" href={item.url} target="_blank" rel="noreferrer">
@@ -688,6 +723,18 @@ export default function Reading() {
                     {item.quote && <div className="quote">“{item.quote}”</div>}
                   </div>
                 ))}
+                {hiddenRelatedCount > 0 && (
+                  <button
+                    type="button"
+                    className="content-list-toggle"
+                    onClick={() => setExpandedRelatedMoments((current) => ({
+                      ...current,
+                      [activeMoment.id]: !relatedExpanded,
+                    }))}
+                  >
+                    {relatedExpanded ? '收起内容' : `展开剩余 ${hiddenRelatedCount} 篇`}
+                  </button>
+                )}
               </div>}
 
               {!submitted ? (
