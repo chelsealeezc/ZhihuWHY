@@ -6,7 +6,8 @@ import {
   logout,
   startAuth,
 } from '../server/oauth.mjs'
-import { analyzeArticle, chatWithPersona, classifyRelatedContent, expandSelection } from '../server/ai.mjs'
+import { chatWithPersona, expandSelection } from '../server/ai.mjs'
+import { getCachedArticleAnalysis, getCachedRecommendation } from '../server/discussion-cache.mjs'
 import { searchZhihu } from '../server/zhihu.mjs'
 
 function json(response, status, payload) {
@@ -94,8 +95,8 @@ export async function dispatch(route, request, response) {
     if (route === 'discussions/analyze') {
       if (request.method !== 'POST') return methodNotAllowed(response, 'POST')
       const body = await readJson(request)
-      const moments = await analyzeArticle(body.article)
-      return json(response, 200, { ok: true, moments })
+      const result = await getCachedArticleAnalysis(body.article)
+      return json(response, 200, { ok: true, ...result })
     }
     if (route === 'discussions/selection') {
       if (request.method !== 'POST') return methodNotAllowed(response, 'POST')
@@ -122,8 +123,8 @@ export async function dispatch(route, request, response) {
       const search = suppliedCandidates.length > 0
         ? { items: suppliedCandidates, searchHashId: null }
         : await searchZhihu(body.moment?.searchQuery || body.moment?.coreQuestion, 10, body.moment?.coreQuestion)
-      const groups = await classifyRelatedContent(body.moment, body.selectedOpinions, search.items)
-      return json(response, 200, { ok: true, groups, searchHashId: search.searchHashId })
+      const result = await getCachedRecommendation(body.moment, body.selectedOpinions, search.items)
+      return json(response, 200, { ok: true, ...result, searchHashId: search.searchHashId })
     }
     if (route === 'zhihu/search') {
       if (request.method !== 'GET') return methodNotAllowed(response, 'GET')

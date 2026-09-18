@@ -3,9 +3,6 @@ import { aiConfig } from './config.mjs'
 const AI_TIMEOUT_MS = 90_000
 // 留出足够时间让函数返回结构化错误，避免部署平台先切断连接。
 const RECOMMENDATION_AI_TIMEOUT_MS = 11_000
-const RECOMMENDATION_CACHE_TTL_MS = 24 * 60 * 60 * 1000
-const RECOMMENDATION_CACHE_MAX_ENTRIES = 200
-const recommendationCache = new Map()
 const SELECTION_TIMEOUT_MS = 30_000
 
 function requireAiConfig() {
@@ -221,41 +218,10 @@ function validateRecommendations(data, candidates) {
   return groups
 }
 
-function recommendationCacheKey(input) {
-  return JSON.stringify([
-    input.coreQuestion,
-    input.searchQuery,
-    input.opinions,
-    input.candidates.map((candidate) => [candidate.id || candidate.url, candidate.title, candidate.quote]),
-    aiConfig.recommendModel,
-    2,
-  ])
-}
-
-function getCachedRecommendation(key) {
-  const cached = recommendationCache.get(key)
-  if (!cached) return null
-  if (cached.createdAt <= Date.now() - RECOMMENDATION_CACHE_TTL_MS) {
-    recommendationCache.delete(key)
-    return null
-  }
-  return structuredClone(cached.groups)
-}
-
-function cacheRecommendation(key, groups) {
-  if (recommendationCache.size >= RECOMMENDATION_CACHE_MAX_ENTRIES) {
-    recommendationCache.delete(recommendationCache.keys().next().value)
-  }
-  recommendationCache.set(key, { createdAt: Date.now(), groups: structuredClone(groups) })
-}
-
 export async function classifyRelatedContent(moment, selectedOpinions, candidates) {
   if (Array.isArray(candidates) && candidates.length === 0) return { same: [], different: [], neutral: [] }
   const input = normalizeRecommendationInput(moment, selectedOpinions, candidates)
   requireAiConfig()
-  const cacheKey = recommendationCacheKey(input)
-  const cached = getCachedRecommendation(cacheKey)
-  if (cached) return cached
 
   const candidateText = input.candidates.map((candidate, index) => ({
     candidateIndex: index,
@@ -297,9 +263,7 @@ export async function classifyRelatedContent(moment, selectedOpinions, candidate
     })
   }
   try {
-    const groups = validateRecommendations(parseJsonText(extractOutputText(payload)), input.candidates)
-    cacheRecommendation(cacheKey, groups)
-    return groups
+    return validateRecommendations(parseJsonText(extractOutputText(payload)), input.candidates)
   } catch (error) {
     if (error?.code) throw error
     throw Object.assign(new Error('AI 未返回可解析的立场分类 JSON'), {
