@@ -12,7 +12,8 @@ import {
   getCollections,
   getContents,
 } from './oauth.mjs'
-import { analyzeArticle, chatWithPersona, classifyRelatedContent, expandSelection } from './ai.mjs'
+import { chatWithPersona, expandSelection } from './ai.mjs'
+import { getCachedArticleAnalysis, getCachedRecommendation } from './discussion-cache.mjs'
 import { searchZhihu } from './zhihu.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -136,8 +137,8 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/discussions/analyze' && req.method === 'POST') {
       try {
         const body = await readJson(req)
-        const moments = await analyzeArticle(body.article)
-        return json(res, 200, { ok: true, moments })
+        const result = await getCachedArticleAnalysis(body.article)
+        return json(res, 200, { ok: true, ...result })
       } catch (e) {
         return json(res, e.status || 500, {
           ok: false,
@@ -185,8 +186,8 @@ const server = http.createServer(async (req, res) => {
         const search = suppliedCandidates.length > 0
           ? { items: suppliedCandidates, searchHashId: null }
           : await searchZhihu(body.moment?.searchQuery || body.moment?.coreQuestion, 10, body.moment?.coreQuestion)
-        const groups = await classifyRelatedContent(body.moment, body.selectedOpinions, search.items)
-        return json(res, 200, { ok: true, groups, searchHashId: search.searchHashId })
+        const result = await getCachedRecommendation(body.moment, body.selectedOpinions, search.items)
+        return json(res, 200, { ok: true, ...result, searchHashId: search.searchHashId })
       } catch (e) {
         return json(res, e.status || 500, {
           ok: false,

@@ -234,23 +234,6 @@ test('recommendation output does not generate or preserve classification reasons
   } finally { globalThis.fetch = old }
 })
 
-test('recommendation classification is cached for 24-hour reuse', async () => {
-  const old = globalThis.fetch
-  let calls = 0
-  globalThis.fetch = async () => {
-    calls++
-    return { ok: true, json: async () => ({ output_text: '{"c":[[0,"s","反馈能帮助开始",88]]}' }) }
-  }
-  try {
-    const cacheMoment = { ...moment, coreQuestion: '缓存是否复用？' }
-    const first = await classifyRelatedContent(cacheMoment, ['是'], related)
-    const second = await classifyRelatedContent(cacheMoment, ['是'], related)
-    assert.equal(calls, 1)
-    assert.deepEqual(second, first)
-    assert.notEqual(second, first)
-  } finally { globalThis.fetch = old }
-})
-
 test('empty search retries core question once; errors do not trigger fallback', async () => {
   const old = globalThis.fetch
   const queries = []
