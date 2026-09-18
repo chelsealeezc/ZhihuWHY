@@ -85,7 +85,13 @@ function createSelectionMoment(text, anchorParagraphId, context = {}) {
   }
 }
 
-function RecommendationGroup({ title, tone, items }) {
+function compactViewpoint(value, maxLength = 40) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim()
+  if (text.length <= maxLength) return text
+  return `${text.slice(0, Math.max(1, maxLength - 2)).replace(/[，,;；。！？!?]+$/, '')}……`
+}
+
+function RecommendationGroup({ title, tone, items, refining = false }) {
   return (
     <section className={`recommendation-group ${tone}`}>
       <div className="recommendation-heading">
@@ -96,7 +102,11 @@ function RecommendationGroup({ title, tone, items }) {
         <div className="recommendation-empty">暂时没有足够明确的内容</div>
       ) : (
         items.map((item) => {
-          const viewpoint = item.viewpoint || item.claim || item.quote || item.why || item.title
+          const refinedViewpoint = item.viewpoint || item.claim
+          const viewpoint = refinedViewpoint
+            ? compactViewpoint(refinedViewpoint)
+            : compactViewpoint(item.title || item.why || '相关内容')
+          const sourceExcerpt = item.quote || ''
           const classificationReason = item.why && item.why !== viewpoint ? item.why : ''
           return (
             <div key={`${tone}-${item.id}`} className="related-item recommendation-item">
@@ -115,6 +125,12 @@ function RecommendationGroup({ title, tone, items }) {
                 {item.author} · {item.voteup} 赞同
                 {item.relevanceScore ? ` · ${item.relevanceScore}% 相关` : ''}
               </div>
+              {sourceExcerpt && (
+                <details className="recommendation-excerpt">
+                  <summary>{refining || !refinedViewpoint ? '展开原文摘要' : '查看原文摘要'}</summary>
+                  <p>{sourceExcerpt}</p>
+                </details>
+              )}
               {classificationReason && (
                 <div className="why">分类依据：{classificationReason}</div>
               )}
@@ -705,17 +721,20 @@ export default function Reading() {
                         title="和你相近的观点"
                         tone="same"
                         items={activeRecommendation.groups.same || []}
+                        refining={activeRecommendation.refining}
                       />
                       <RecommendationGroup
                         title="与你不同的观点"
                         tone="different"
                         items={activeRecommendation.groups.different || []}
+                        refining={activeRecommendation.refining}
                       />
                       {(activeRecommendation.groups.neutral || []).length > 0 && (
                         <RecommendationGroup
                           title={activeRecommendation.refining ? '相关表达 · 正在判断立场…' : '相关但立场尚不明确'}
                           tone="neutral"
                           items={activeRecommendation.groups.neutral}
+                          refining={activeRecommendation.refining}
                         />
                       )}
                     </div>

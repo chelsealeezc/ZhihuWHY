@@ -586,10 +586,38 @@
 }
 
 .recommendation-viewpoint {
+  display: -webkit-box;
+  overflow: hidden;
   color: var(--text);
   font-size: 13px;
   font-weight: 550;
   line-height: 1.65;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.recommendation-excerpt {
+  margin-top: 9px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.recommendation-excerpt summary {
+  width: max-content;
+  cursor: pointer;
+  color: var(--zh-blue);
+  font-weight: 600;
+  list-style-position: inside;
+}
+
+.recommendation-excerpt p {
+  margin: 8px 0 0;
+  padding: 9px 10px;
+  border-left: 2px solid #b9d4fa;
+  border-radius: 0 8px 8px 0;
+  background: var(--bg);
+  line-height: 1.65;
+  white-space: pre-wrap;
 }
 
 .recommendation-source {
