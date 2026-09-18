@@ -13,6 +13,14 @@ function stripHighlightTags(value) {
   return String(value || '').replace(/<\/?em>/gi, '')
 }
 
+function authorField(item, ...keys) {
+  for (const key of keys) {
+    const value = item?.[key] ?? item?.Author?.[key]
+    if (value != null && String(value).trim()) return value
+  }
+  return ''
+}
+
 export async function searchZhihu(query, count = 10, fallbackQuery = '') {
   const normalizedQuery = String(query || '').trim()
   if (!normalizedQuery) {
@@ -56,8 +64,8 @@ export async function searchZhihu(query, count = 10, fallbackQuery = '') {
       title: item.Title || '',
       quote: stripHighlightTags(item.ContentText),
       url: item.Url || '',
-      author: item.AuthorName || '知乎用户',
-      authorAvatar: item.AuthorAvatar || '',
+      author: authorField(item, 'AuthorName', 'Name', 'Fullname') || '知乎用户',
+      authorAvatar: authorField(item, 'AuthorAvatar', 'AvatarUrl', 'Avatar'),
       authorBadgeText: item.AuthorBadgeText || '',
       voteup: Number(item.VoteUpCount) || 0,
       comments: Number(item.CommentCount) || 0,

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
+import UserAvatar from '../components/UserAvatar'
 import { getSpace } from '../data/mock'
 import {
   DISCUSSION_SPACES_STORAGE_KEY,
@@ -391,11 +392,11 @@ export default function DiscussionSpace() {
                 <div className="post-head">
                   <button
                     type="button"
-                    className="avatar sm persona-trigger"
+                    className="persona-trigger"
                     onClick={() => openPersonaByName(post.user)}
                     title={`与 ${post.user} 的 AI 分身对话`}
                   >
-                    {post.user.slice(0, 1)}
+                    <UserAvatar name={post.user} src={post.avatar} size="sm" />
                   </button>
                   <div>
                     <div className="who">{post.user}</div>
@@ -536,7 +537,7 @@ export default function DiscussionSpace() {
                   disabled={chatSending}
                   onClick={() => openPersona(person)}
                 >
-                  <span className="avatar sm">{person.name.slice(0, 1)}</span>
+                  <UserAvatar name={person.name} src={person.avatar} size="sm" />
                   <span>{person.name}</span>
                 </button>
               ))}
@@ -611,7 +612,7 @@ export default function DiscussionSpace() {
             <div className="source-list">
               {space.sources.map((src) => (
                 <div key={src.id} className="source-item">
-                  <div className="avatar sm">文</div>
+                  <UserAvatar name={src.author} src={src.authorAvatar} size="sm" />
                   <div>
                     {src.url ? (
                       <a className="title" href={src.url} target="_blank" rel="noreferrer">

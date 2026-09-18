@@ -18,7 +18,7 @@ globalThis.localStorage = {
   setItem: (key, value) => store.set(key, value),
 }
 const related = [
-  { id: 'a', author: '甲', quote: '及时反馈让我容易开始。', title: '反馈', why: '围绕「执行力」提供了相关观点或真实经历。' },
+  { id: 'a', author: '甲', authorAvatar: 'https://example.com/a.png', quote: '及时反馈让我容易开始。', title: '反馈', why: '围绕「执行力」提供了相关观点或真实经历。' },
   { id: 'b', author: '乙', quote: '我的困难是任务太模糊。', title: '任务', why: '围绕「执行力」提供了相关观点或真实经历。' },
 ]
 const moment = { id: 'test', coreQuestion: '为什么难开始', searchQuery: '执行力', voteOptions: [], related }
@@ -52,6 +52,7 @@ test('unrefined authors retain distinct source text and unknown stance', () => {
   const space = saveDiscussionSpace(moment, article, ['v1'])
   assert.deepEqual(space.posts.map((p) => p.text), related.map((p) => p.quote))
   assert.ok(space.posts.every((p) => p.stance === 'neutral' && !p.refined))
+  assert.equal(space.posts[0].avatar, related[0].authorAvatar)
   assert.equal(getSavedDiscussionSpace('test').worthChat[0].claim, related[0].quote)
 })
 

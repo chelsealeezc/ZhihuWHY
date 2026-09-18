@@ -41,6 +41,7 @@ export function saveDiscussionSpace(
   const posts = related.map((item, index) => ({
     id: `real-${item.id || index}`,
     user: item.author || '知乎用户',
+    avatar: item.authorAvatar || '',
     from: '来自知乎相关内容',
     time: '已聚合',
     stance: item.stance === 'diff' || item.stance === 'different'
@@ -78,6 +79,7 @@ export function saveDiscussionSpace(
     worthChat: related.slice(0, 3).map((item, index) => ({
       id: `chat-${item.id || index}`,
       name: item.author || '知乎用户',
+      avatar: item.authorAvatar || '',
       claim: authorView(item) || truncateText(item.quote || item.title),
       snippet: item.stance === 'diff' || item.stance === 'different'
         ? '相关表达 · 与你存在分歧'
@@ -93,6 +95,7 @@ export function saveDiscussionSpace(
         id: article.id,
         title: article.question || article.title,
         author: article.author?.name || article.author,
+        authorAvatar: article.author?.avatar || '',
         voteup: article.voteup || 0,
         comments: article.comments || 0,
         url: article.sourceUrl || '',
@@ -101,6 +104,7 @@ export function saveDiscussionSpace(
         id: item.id,
         title: item.title,
         author: item.author,
+        authorAvatar: item.authorAvatar || '',
         voteup: item.voteup,
         comments: item.comments || 0,
         url: item.url || '',
