@@ -60,23 +60,32 @@ function RecommendationGroup({ title, tone, items }) {
       {items.length === 0 ? (
         <div className="recommendation-empty">暂时没有足够明确的内容</div>
       ) : (
-        items.slice(0, 4).map((item) => (
-          <div key={`${tone}-${item.id}`} className="related-item">
-            {item.url ? (
-              <a className="title" href={item.url} target="_blank" rel="noreferrer">
-                {item.title}
-              </a>
-            ) : (
-              <div className="title">{item.title}</div>
-            )}
-            <div className="meta">
-              {item.author} · {item.voteup} 赞同
-              {item.relevanceScore ? ` · ${item.relevanceScore}% 相关` : ''}
+        items.slice(0, 4).map((item) => {
+          const viewpoint = item.viewpoint || item.claim || item.quote || item.why || item.title
+          const classificationReason = item.why && item.why !== viewpoint ? item.why : ''
+          return (
+            <div key={`${tone}-${item.id}`} className="related-item recommendation-item">
+              <div className="recommendation-viewpoint">{viewpoint}</div>
+              <div className="recommendation-source">
+                <span>来源</span>
+                {item.url ? (
+                  <a className="title" href={item.url} target="_blank" rel="noreferrer">
+                    {item.title}
+                  </a>
+                ) : (
+                  <div className="title">{item.title}</div>
+                )}
+              </div>
+              <div className="meta">
+                {item.author} · {item.voteup} 赞同
+                {item.relevanceScore ? ` · ${item.relevanceScore}% 相关` : ''}
+              </div>
+              {classificationReason && (
+                <div className="why">分类依据：{classificationReason}</div>
+              )}
             </div>
-            {item.quote && <div className="quote">“{item.quote}”</div>}
-            <div className="why">分类依据：{item.why}</div>
-          </div>
-        ))
+          )
+        })
       )}
     </section>
   )
@@ -488,6 +497,10 @@ export default function Reading() {
                 </div>
               ) : (
                 <div className="vote-result">
+                  <div className="joined-question">
+                    <span>本次讨论</span>
+                    <h4>{activeMoment.coreQuestion}</h4>
+                  </div>
                   <div className="ok">你已加入讨论</div>
                   <div className="choice">你选择了：{primaryLabel}</div>
                   <div className="stat">
