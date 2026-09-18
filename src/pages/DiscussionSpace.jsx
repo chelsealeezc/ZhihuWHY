@@ -96,6 +96,8 @@ export default function DiscussionSpace() {
   const [feedFilter, setFeedFilter] = useState('all')
   const [draft, setDraft] = useState('')
   const [localPosts, setLocalPosts] = useState([])
+  const [localReplies, setLocalReplies] = useState({})
+  const [replyTarget, setReplyTarget] = useState(null)
   const [composerMessage, setComposerMessage] = useState('')
   const [agreedPosts, setAgreedPosts] = useState(() => new Set())
   const [expandedSources, setExpandedSources] = useState(() => new Set())
@@ -162,8 +164,17 @@ export default function DiscussionSpace() {
     setDescriptionOverflowing(el.scrollHeight > el.clientHeight + 1)
   }, [activePersona, descriptionExpanded])
 
-  function focusComposer(filter = 'all') {
-    setFeedFilter(filter)
+  function focusComposer(post = null, intent = 'reply') {
+    if (post) {
+      setReplyTarget({
+        postId: post.id,
+        user: post.user,
+        excerpt: compactSentence(post.text, 46),
+        intent,
+      })
+    } else {
+      setReplyTarget(null)
+    }
     composerRef.current?.focus()
   }
 
@@ -175,8 +186,7 @@ export default function DiscussionSpace() {
       composerRef.current?.focus()
       return
     }
-    setLocalPosts((current) => [
-      {
+    const entry = {
         id: `local-${Date.now()}`,
         user: '我',
         from: '来自你的观点',
@@ -185,11 +195,28 @@ export default function DiscussionSpace() {
         stanceOptionId: myChoice,
         text,
         agree: 0,
-      },
-      ...current,
-    ])
+    }
+    if (replyTarget) {
+      setLocalReplies((current) => ({
+        ...current,
+        [replyTarget.postId]: [
+          ...(current[replyTarget.postId] || []),
+          {
+            ...entry,
+            replyTo: replyTarget.user,
+            replyToExcerpt: replyTarget.excerpt,
+            intent: replyTarget.intent,
+          },
+        ],
+      }))
+    } else {
+      setLocalPosts((current) => [entry, ...current])
+    }
     setDraft('')
-    setComposerMessage('已加入本场讨论（仅保存在当前页面）。')
+    setComposerMessage(replyTarget
+      ? `已回复 @${replyTarget.user}（仅保存在当前页面）。`
+      : '已加入本场讨论（仅保存在当前页面）。')
+    setReplyTarget(null)
   }
 
   function toggleAgree(postId) {
@@ -433,11 +460,11 @@ export default function DiscussionSpace() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => focusComposer(classificationReady ? post.stance : 'all')}
+                    onClick={() => focusComposer(post, 'question')}
                   >
                     追问
                   </button>
-                  <button type="button" onClick={() => focusComposer('all')}>
+                  <button type="button" onClick={() => focusComposer(post, 'reply')}>
                     回应
                   </button>
                   {refined && (
@@ -454,22 +481,45 @@ export default function DiscussionSpace() {
                     <a href={post.url} target="_blank" rel="noreferrer">查看原文</a>
                   )}
                 </div>
+                {(localReplies[post.id] || []).length > 0 && (
+                  <div className="post-replies" aria-label={`${post.user} 的回复`}>
+                    {(localReplies[post.id] || []).map((reply) => (
+                      <div key={reply.id} className="post-reply">
+                        <div className="post-reply-head">
+                          <UserAvatar name={reply.user} size="sm" />
+                          <strong>{reply.user}</strong>
+                          <span>{reply.intent === 'question' ? '追问' : '回复'} @{reply.replyTo} · {reply.time}</span>
+                        </div>
+                        <div className="post-reply-reference">“{reply.replyToExcerpt}”</div>
+                        <p>{reply.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </article>
             })}
           </div>
 
           <form className="composer" onSubmit={submitPost}>
             <div className="avatar sm">我</div>
-            <input
-              ref={composerRef}
-              value={draft}
-              onChange={(event) => {
-                setDraft(event.target.value)
-                if (composerMessage) setComposerMessage('')
-              }}
-              placeholder="写下你的看法"
-              aria-label="写下你的看法"
-            />
+            <div className="composer-main">
+              {replyTarget && (
+                <div className="composer-reply-target">
+                  <span>{replyTarget.intent === 'question' ? '追问' : '回复'} @{replyTarget.user}：{replyTarget.excerpt}</span>
+                  <button type="button" onClick={() => setReplyTarget(null)} aria-label="取消回复">×</button>
+                </div>
+              )}
+              <input
+                ref={composerRef}
+                value={draft}
+                onChange={(event) => {
+                  setDraft(event.target.value)
+                  if (composerMessage) setComposerMessage('')
+                }}
+                placeholder={replyTarget ? `回复 @${replyTarget.user}` : '写下你的看法'}
+                aria-label={replyTarget ? `回复 ${replyTarget.user}` : '写下你的看法'}
+              />
+            </div>
             <button type="submit" className="btn btn-primary">
               发送
             </button>
