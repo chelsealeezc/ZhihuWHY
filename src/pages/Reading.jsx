@@ -114,7 +114,7 @@ function RecommendationGroup({ title, tone, items, refining = false }) {
         <div className="recommendation-empty">暂时没有足够明确的内容</div>
       ) : (
         items.map((item) => {
-          const refinedViewpoint = item.claim
+          const refinedViewpoint = item.claim || item.quote
           const viewpoint = refinedViewpoint
             ? compactViewpoint(refinedViewpoint)
             : compactViewpoint(item.title || item.why || '相关内容')
