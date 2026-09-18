@@ -80,7 +80,7 @@ export function analyzeArticle(article) {
   return analysisRequests.get(key)
 }
 
-export function searchRelatedContent(query, count = 4, fallback = '') {
+export function searchRelatedContent(query, count = 8, fallback = '') {
   const key = `${query}:${count}:${fallback}`
   if (!searchRequests.has(key)) {
     const request = fetch(`/api/zhihu/search?${new URLSearchParams({ query, count, fallback })}`, {
