@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
 import { getSpace } from '../data/mock'
-import { getSavedDiscussionSpace } from '../services/discussionSpaces'
+import {
+  DISCUSSION_SPACES_STORAGE_KEY,
+  getSavedDiscussionSpace,
+} from '../services/discussionSpaces'
 import './DiscussionSpace.css'
 
 const PERSONA_PRESETS = {
@@ -78,16 +81,17 @@ function createPersona(person, posts) {
 export default function DiscussionSpace() {
   const { momentId } = useParams()
   const [searchParams] = useSearchParams()
-  const space = useMemo(() => getSavedDiscussionSpace(momentId) || getSpace(momentId), [momentId])
+  const [spaceRevision, setSpaceRevision] = useState(0)
+  const space = useMemo(
+    () => getSavedDiscussionSpace(momentId) || getSpace(momentId),
+    [momentId, spaceRevision],
+  )
   const choices = (searchParams.get('choices') || space.selectedChoices?.join(',') || 'v1')
     .split(',')
     .filter(Boolean)
   const myChoice = choices[0]
 
-  const [feedFilter, setFeedFilter] = useState(() => {
-    const initialFilter = searchParams.get('filter')
-    return ['same', 'diff', 'neutral'].includes(initialFilter) ? initialFilter : 'all'
-  })
+  const [feedFilter, setFeedFilter] = useState('all')
   const [draft, setDraft] = useState('')
   const [localPosts, setLocalPosts] = useState([])
   const [composerMessage, setComposerMessage] = useState('')
@@ -102,9 +106,13 @@ export default function DiscussionSpace() {
     activePersona ? [{ role: 'assistant', text: activePersona.opening }] : []
   ))
   const [chatSending, setChatSending] = useState(false)
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false)
+  const [descriptionOverflowing, setDescriptionOverflowing] = useState(false)
   const composerRef = useRef(null)
   const chatInputRef = useRef(null)
   const chatEndRef = useRef(null)
+  const personaTabsRef = useRef(null)
+  const descriptionRef = useRef(null)
 
   const allPosts = useMemo(() => [...localPosts, ...(space.posts || [])], [localPosts, space.posts])
   const participantCount = useMemo(
@@ -118,10 +126,39 @@ export default function DiscussionSpace() {
     if (feedFilter === 'neutral') return allPosts.filter((p) => p.stance === 'neutral')
     return allPosts
   }, [allPosts, feedFilter])
+  const feedFilters = useMemo(() => [
+    { id: 'all', label: '全部', count: allPosts.length },
+    { id: 'same', label: '与我相近', count: allPosts.filter((post) => post.stance === 'same').length },
+    { id: 'diff', label: '与我不同', count: allPosts.filter((post) => post.stance === 'diff').length },
+    { id: 'neutral', label: '立场不明', count: allPosts.filter((post) => post.stance === 'neutral').length },
+  ], [allPosts])
+  const classificationPending = space.classificationStatus === 'pending'
+  const classificationFailed = space.classificationStatus === 'failed'
+  const classificationReady = !classificationPending && !classificationFailed
+
+  useEffect(() => {
+    setFeedFilter('all')
+  }, [momentId])
+
+  useEffect(() => {
+    function syncDiscussionSpace(event) {
+      if (event.key === DISCUSSION_SPACES_STORAGE_KEY) {
+        setSpaceRevision((revision) => revision + 1)
+      }
+    }
+    window.addEventListener('storage', syncDiscussionSpace)
+    return () => window.removeEventListener('storage', syncDiscussionSpace)
+  }, [])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [chatMessages, chatSending])
+
+  useEffect(() => {
+    const el = descriptionRef.current
+    if (!el) return
+    setDescriptionOverflowing(el.scrollHeight > el.clientHeight + 1)
+  }, [activePersona, descriptionExpanded])
 
   function focusComposer(filter = 'all') {
     setFeedFilter(filter)
@@ -176,7 +213,28 @@ export default function DiscussionSpace() {
     setActivePersona(persona)
     setChatMessages([{ role: 'assistant', text: persona.opening }])
     setChatDraft('')
+    setDescriptionExpanded(false)
     window.setTimeout(() => chatInputRef.current?.focus(), 80)
+  }
+
+  function openPersonaByName(name) {
+    if (!name || name === '我') return
+    const matched = space.worthChat?.find((person) => person.name === name)
+    if (matched) {
+      openPersona(matched)
+    } else {
+      const persona = createPersona({ id: `chat-by-name-${name}`, name }, allPosts)
+      setActivePersona(persona)
+      setChatMessages([{ role: 'assistant', text: persona.opening }])
+      setChatDraft('')
+      setDescriptionExpanded(false)
+      window.setTimeout(() => chatInputRef.current?.focus(), 80)
+    }
+    window.requestAnimationFrame(() => {
+      const activeTab = personaTabsRef.current?.querySelector('button.active')
+      if (activeTab) activeTab.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+      else personaTabsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
   }
 
   function localPersonaReply(persona, question) {
@@ -233,7 +291,7 @@ export default function DiscussionSpace() {
           </div>
 
           <div className="card space-card">
-            <h3>答主的观点分布</h3>
+            <h3>大家的投票结果</h3>
             <div className="dist-list">
               {space.options.map((opt) => (
                 <div
@@ -253,35 +311,6 @@ export default function DiscussionSpace() {
             </div>
           </div>
 
-          <div className="card space-card">
-            <h3>讨论筛选</h3>
-            <div className="filter-tabs">
-              {[
-                ['all', '全部'],
-                ['same', '和我相近'],
-                ['diff', '和我不同'],
-                ['neutral', '立场不明'],
-              ].map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  className={feedFilter === id ? 'active' : ''}
-                  onClick={() => setFeedFilter(id)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <ul className="filter-list">
-              {space.filters.map((f) => (
-                <li key={f.id}>
-                  <span>{f.label}</span>
-                  <span>{f.count}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="filter-note">来源：知乎回答与文章</p>
-          </div>
         </aside>
 
         <main className="space-col">
@@ -295,6 +324,32 @@ export default function DiscussionSpace() {
             </Link>
           </div>
 
+          <div className="feed-filter" role="tablist" aria-label="筛选讨论观点">
+            {feedFilters.map((filter) => (
+              <button
+                key={filter.id}
+                type="button"
+                role="tab"
+                aria-selected={feedFilter === filter.id}
+                className={feedFilter === filter.id ? 'active' : ''}
+                disabled={filter.id !== 'all' && !classificationReady}
+                onClick={() => setFeedFilter(filter.id)}
+              >
+                <span>{filter.label}</span>
+                {(filter.id === 'all' || classificationReady) && (
+                  <span className="feed-filter-count">{filter.count}</span>
+                )}
+              </button>
+            ))}
+          </div>
+          {!classificationReady && (
+            <div className={`classification-note${classificationFailed ? ' failed' : ''}`} aria-live="polite">
+              {classificationPending
+                ? '正在判断观点关系，完成后即可按立场筛选'
+                : '本次观点分类暂未完成，当前先展示全部内容'}
+            </div>
+          )}
+
           <div className="feed">
             {posts.length === 0 && (
               <div className="card empty-feed">这个筛选下暂时没有观点，换个筛选看看。</div>
@@ -303,21 +358,34 @@ export default function DiscussionSpace() {
               const refined = Boolean(post.refined)
               const sourceExpanded = expandedSources.has(post.id)
               const sourceUrl = sourceUrlWithTextFragment(post.url, post.sourceExcerpt)
+              const postClassificationPending = classificationPending && post.real
+              const postClassificationFailed = classificationFailed && post.real
               return <article key={post.id} className="card post-card">
                 <div className="post-head">
-                  <div className="avatar sm">{post.user.slice(0, 1)}</div>
+                  <button
+                    type="button"
+                    className="avatar sm persona-trigger"
+                    onClick={() => openPersonaByName(post.user)}
+                    title={`与 ${post.user} 的 AI 分身对话`}
+                  >
+                    {post.user.slice(0, 1)}
+                  </button>
                   <div>
                     <div className="who">{post.user}</div>
                     <div className="from">
                       {post.from} · {post.time}
                     </div>
                   </div>
-                  <span className={`stance-tag ${post.stance}`}>
-                    {post.stance === 'same'
-                      ? '同观点'
-                      : post.stance === 'diff'
-                        ? '不同观点'
-                        : '立场不明'}
+                  <span className={`stance-tag ${postClassificationPending || postClassificationFailed ? 'pending' : post.stance}`}>
+                    {postClassificationPending
+                      ? '正在判断'
+                      : postClassificationFailed
+                        ? '暂未分类'
+                        : post.stance === 'same'
+                          ? '同观点'
+                          : post.stance === 'diff'
+                            ? '不同观点'
+                            : '立场不明'}
                   </span>
                 </div>
                 {refined && (
@@ -354,7 +422,10 @@ export default function DiscussionSpace() {
                   >
                     {agreedPosts.has(post.id) ? '已认同' : '认同'} {post.agree + (agreedPosts.has(post.id) ? 1 : 0)}
                   </button>
-                  <button type="button" onClick={() => focusComposer(post.stance)}>
+                  <button
+                    type="button"
+                    onClick={() => focusComposer(classificationReady ? post.stance : 'all')}
+                  >
                     追问
                   </button>
                   <button type="button" onClick={() => focusComposer('all')}>
@@ -406,7 +477,7 @@ export default function DiscussionSpace() {
               </div>
               <span>Beta</span>
             </div>
-            <div className="persona-tabs" aria-label="选择 AI 分身">
+            <div className="persona-tabs" ref={personaTabsRef} aria-label="选择 AI 分身">
               {space.worthChat.map((person) => (
                 <button
                   key={person.id}
@@ -427,7 +498,24 @@ export default function DiscussionSpace() {
                     <strong>{activePersona.name}</strong>
                     <span>{activePersona.stance}</span>
                   </div>
-                  <p>{activePersona.description}</p>
+                  <p
+                    ref={descriptionRef}
+                    className={`persona-desc${descriptionExpanded ? '' : ' clamped'}`}
+                    onClick={() => {
+                      if (!descriptionExpanded && descriptionOverflowing) setDescriptionExpanded(true)
+                    }}
+                  >
+                    {activePersona.description}
+                  </p>
+                  {descriptionOverflowing && (
+                    <button
+                      type="button"
+                      className="desc-toggle"
+                      onClick={() => setDescriptionExpanded((expanded) => !expanded)}
+                    >
+                      {descriptionExpanded ? '收起 ▴' : '展开全部 ▾'}
+                    </button>
+                  )}
                   {activePersona.evidence.length > 0 && (
                     <details>
                       <summary>查看参考的过往表达</summary>
