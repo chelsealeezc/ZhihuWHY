@@ -30,6 +30,7 @@ export const aiConfig = {
   apiKey: process.env.OPENAI_NEXT_API_KEY || '',
   baseUrl: (process.env.OPENAI_NEXT_BASE_URL || 'https://api.openai-next.com/v1').replace(/\/$/, ''),
   model: process.env.OPENAI_NEXT_MODEL || 'gpt-5.6-luna',
+  recommendModel: process.env.OPENAI_NEXT_RECOMMEND_MODEL || 'gpt-5.6-luna',
 }
 
 // 服务端口

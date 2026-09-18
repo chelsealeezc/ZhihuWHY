@@ -4,7 +4,9 @@ const ANALYSIS_CACHE_PREFIX = 'zhihuwhy:analysis:v1:'
 const ANALYSIS_CACHE_TTL = 24 * 60 * 60 * 1000
 // 客户端兜底超时：保证 loading 状态一定会结束，不会永久卡住界面。
 const SEARCH_TIMEOUT_MS = 20_000
-const RECOMMEND_TIMEOUT_MS = 100_000
+// 单次精排最多等待 12.5 秒；加上一次退避重试，整条链路会在约 26 秒内结束。
+const RECOMMEND_ATTEMPT_TIMEOUT_MS = 12_500
+const RECOMMEND_RETRY_DELAY_MS = 400
 const SELECTION_TIMEOUT_MS = 30_000
 
 function toTimeoutError(error, code, message) {
@@ -45,9 +47,38 @@ async function readApiResponse(response) {
   if (!response.ok || !data?.ok) {
     const error = new Error(data?.error?.message || `请求失败（HTTP ${response.status}）`)
     error.code = data?.error?.code || 'API_REQUEST_FAILED'
+    error.status = response.status
     throw error
   }
   return data
+}
+
+function isRetryableRecommendationError(error) {
+  if (error?.name === 'TimeoutError' || error?.name === 'AbortError' || error instanceof TypeError) {
+    return true
+  }
+  if (error?.code === 'SERVER_CONFIG_MISSING') return false
+  if (['AI_TIMEOUT', 'AI_REQUEST_FAILED', 'INTERNAL_ERROR'].includes(error?.code)) return true
+  return Number(error?.status) >= 500
+}
+
+function recommendationError(error) {
+  if (error?.name === 'TimeoutError' || error?.name === 'AbortError' || error?.code === 'AI_TIMEOUT') {
+    const timeoutError = new Error('观点精排暂时超时，已保留相关内容，可重新精排。')
+    timeoutError.code = 'RECOMMEND_TIMEOUT'
+    return timeoutError
+  }
+  if (error instanceof TypeError || ['AI_REQUEST_FAILED', 'INTERNAL_ERROR'].includes(error?.code)) {
+    const networkError = new Error('精排服务连接暂时不稳定，已保留相关内容，可重新精排。')
+    networkError.code = 'RECOMMEND_UNAVAILABLE'
+    return networkError
+  }
+  if (error?.code === 'AI_RATE_LIMITED') {
+    const rateLimitError = new Error('精排服务暂时繁忙，请稍后重新精排。')
+    rateLimitError.code = 'RECOMMEND_RATE_LIMITED'
+    return rateLimitError
+  }
+  return error
 }
 
 export function analyzeArticle(article) {
@@ -113,24 +144,31 @@ export async function expandSelectedText(input) {
 }
 
 export async function recommendRelatedContent(moment, selectedOpinions) {
-  let response
-  try {
-    response = await fetch('/api/discussions/recommend', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        moment: {
-          coreQuestion: moment.coreQuestion,
-          searchQuery: moment.searchQuery || moment.coreQuestion,
-        },
-        selectedOpinions,
-        candidates: Array.isArray(moment.related) ? moment.related.slice(0, 10) : [],
-      }),
-      signal: AbortSignal.timeout(RECOMMEND_TIMEOUT_MS),
-    })
-  } catch (error) {
-    throw toTimeoutError(error, 'RECOMMEND_TIMEOUT', '观点精排超时，已保留相关内容。')
+  const body = JSON.stringify({
+    moment: {
+      coreQuestion: moment.coreQuestion,
+      searchQuery: moment.searchQuery || moment.coreQuestion,
+    },
+    selectedOpinions,
+    candidates: Array.isArray(moment.related) ? moment.related.slice(0, 10) : [],
+  })
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch('/api/discussions/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        signal: AbortSignal.timeout(RECOMMEND_ATTEMPT_TIMEOUT_MS),
+      })
+      const data = await readApiResponse(response)
+      return data.groups
+    } catch (error) {
+      if (attempt === 1 || !isRetryableRecommendationError(error)) {
+        throw recommendationError(error)
+      }
+      await new Promise((resolve) => setTimeout(resolve, RECOMMEND_RETRY_DELAY_MS))
+    }
   }
-  const data = await readApiResponse(response)
-  return data.groups
+  throw new Error('观点精排未完成')
 }
