@@ -94,7 +94,7 @@ function RecommendationGroup({ title, tone, items }) {
       {items.length === 0 ? (
         <div className="recommendation-empty">暂时没有足够明确的内容</div>
       ) : (
-        items.slice(0, 4).map((item) => {
+        items.map((item) => {
           const viewpoint = item.viewpoint || item.claim || item.quote || item.why || item.title
           const classificationReason = item.why && item.why !== viewpoint ? item.why : ''
           return (
@@ -267,13 +267,13 @@ export default function Reading() {
     if (!activeMoment?.coreQuestion || activeMoment.searchPending || relatedState[activeMoment.id]) return
     const momentId = activeMoment.id
     setRelatedState((current) => ({ ...current, [momentId]: { status: 'loading' } }))
-    searchRelatedContent(activeMoment.searchQuery || activeMoment.coreQuestion, 4, activeMoment.coreQuestion)
+    searchRelatedContent(activeMoment.searchQuery || activeMoment.coreQuestion, 8, activeMoment.coreQuestion)
       .then((items) => {
         updateMoment(momentId, (moment) => ({
           ...moment,
-          related: items.slice(0, 4).map((item) => mapRelatedItem(item, moment)),
+          related: items.map((item) => mapRelatedItem(item, moment)),
           relatedCount: items.length,
-          participants: countRelatedAuthors(items.slice(0, 4)),
+          participants: countRelatedAuthors(items),
           closestQuote: items[0]
             ? {
                 text: items[0].quote || items[0].title,
