@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 process.env.OPENAI_NEXT_API_KEY = 'test-only'
 process.env.ZHIHU_ACCESS_SECRET = 'test-only'
 const { saveDiscussionSpace, getSavedDiscussionSpace } = await import('../src/services/discussionSpaces.js')
-const { classifyRelatedContent } = await import('../server/ai.mjs')
+const { analyzeArticle, classifyRelatedContent, generateVoteOptionSets } = await import('../server/ai.mjs')
 const { searchZhihu } = await import('../server/zhihu.mjs')
 const store = new Map()
 globalThis.localStorage = {
@@ -57,6 +57,53 @@ test('empty candidates never invoke the model', async () => {
   globalThis.fetch = () => { throw new Error('must not call network') }
   try {
     assert.deepEqual(await classifyRelatedContent(moment, ['选项'], []), { same: [], different: [], neutral: [] })
+  } finally { globalThis.fetch = old }
+})
+
+test('article analysis returns the discussion skeleton before vote options', async () => {
+  const old = globalThis.fetch
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      output_text: JSON.stringify({ moments: [1, 2, 3].map((index) => ({
+        title: `观点${index}`,
+        coreQuestion: `问题${index}`,
+        summary: `说明${index}`,
+        searchQuery: `搜索${index}`,
+        anchorParagraphId: 'p1',
+      })) }),
+    }),
+  })
+  try {
+    const moments = await analyzeArticle({ title: '测试文章', paragraphs: [{ id: 'p1', text: '正文' }] })
+    assert.equal(moments.length, 3)
+    assert.ok(moments.every((item) => item.voteOptions.length === 0))
+  } finally { globalThis.fetch = old }
+})
+
+test('all vote options are generated together in a separate background request', async () => {
+  const old = globalThis.fetch
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      output_text: JSON.stringify({ optionSets: [
+        { momentId: 'ai-m1', voteOptions: ['观点一', '观点二', '观点三'] },
+        { momentId: 'ai-m2', voteOptions: ['支持', '反对', '视情况而定'] },
+      ] }),
+    }),
+  })
+  try {
+    const optionSets = await generateVoteOptionSets([
+      { id: 'ai-m1', coreQuestion: '是否应该分步加载？' },
+      { id: 'ai-m2', coreQuestion: '是否应该预生成？' },
+    ])
+    assert.equal(optionSets.length, 2)
+    assert.deepEqual(optionSets[0].voteOptions, [
+      { id: 'v1', label: '观点一' },
+      { id: 'v2', label: '观点二' },
+      { id: 'v3', label: '观点三' },
+    ])
+    assert.equal(optionSets[1].voteOptions[0].label, '支持')
   } finally { globalThis.fetch = old }
 })
 

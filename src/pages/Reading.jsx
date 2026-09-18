@@ -4,6 +4,7 @@ import Topbar from '../components/Topbar'
 import { getArticle, getMoments } from '../data/mock'
 import {
   analyzeArticle,
+  generateVoteOptionSets,
   recommendRelatedContent,
   searchRelatedContent,
 } from '../services/discussions'
@@ -18,6 +19,7 @@ function createLiveMoment(moment, fallbackMoment) {
     relatedCount: 0,
     participants: 0,
     related: [],
+    voteOptions: Array.isArray(moment.voteOptions) ? moment.voteOptions : [],
     voteResults: fallbackMoment?.voteResults || { v1: 36, v2: 24, v3: 22, v4: 18 },
     closestQuote: fallbackMoment?.closestQuote || {
       text: '投票后，这里会展示与你观点最接近的知乎回答。',
@@ -111,6 +113,7 @@ export default function Reading() {
   const [analysisMode, setAnalysisMode] = useState('loading')
   const [analysisError, setAnalysisError] = useState('')
   const [relatedState, setRelatedState] = useState({})
+  const [voteOptionState, setVoteOptionState] = useState({})
   const [activeMomentId, setActiveMomentId] = useState(fallbackMoments[0]?.id)
   const [selectedVotes, setSelectedVotes] = useState([])
   const [submitted, setSubmitted] = useState(false)
@@ -120,6 +123,7 @@ export default function Reading() {
   const [saved, setSaved] = useState(false)
   const paragraphRefs = useRef({})
   const recommendationRequests = useRef({})
+  const voteOptionBatchRequest = useRef(null)
 
   const activeMoment = useMemo(
     () => moments.find((m) => m.id === activeMomentId) || moments[0],
@@ -135,8 +139,10 @@ export default function Reading() {
     setAnalysisMode('loading')
     setAnalysisError('')
     setRelatedState({})
+    setVoteOptionState({})
     setRecommendationState({})
     recommendationRequests.current = {}
+    voteOptionBatchRequest.current = null
     let cancelled = false
 
     analyzeArticle(article)
@@ -204,6 +210,74 @@ export default function Reading() {
       })
   }, [activeMoment, relatedState])
 
+  useEffect(() => {
+    const readyWithoutState = moments.filter(
+      (moment) => moment.voteOptions?.length >= 3 && !voteOptionState[moment.id],
+    )
+    const missingMoments = moments.filter(
+      (moment) => moment.coreQuestion
+        && moment.voteOptions?.length < 3
+        && !voteOptionState[moment.id],
+    )
+
+    if (readyWithoutState.length > 0) {
+      setVoteOptionState((current) => {
+        const next = { ...current }
+        readyWithoutState.forEach((moment) => { next[moment.id] = { status: 'ready' } })
+        return next
+      })
+    }
+    if (missingMoments.length === 0) return
+
+    const requestToken = {}
+    voteOptionBatchRequest.current = requestToken
+    setVoteOptionState((current) => {
+      const next = { ...current }
+      missingMoments.forEach((moment) => { next[moment.id] = { status: 'loading' } })
+      return next
+    })
+
+    generateVoteOptionSets(missingMoments)
+      .then((optionSets) => {
+        if (voteOptionBatchRequest.current !== requestToken) return
+        const optionsByMoment = new Map(
+          optionSets.map((set) => [set.momentId, set.voteOptions]),
+        )
+        setMoments((current) => current.map((moment) => (
+          optionsByMoment.has(moment.id)
+            ? { ...moment, voteOptions: optionsByMoment.get(moment.id) }
+            : moment
+        )))
+        setVoteOptionState((current) => {
+          const next = { ...current }
+          missingMoments.forEach((moment) => { next[moment.id] = { status: 'ready' } })
+          return next
+        })
+      })
+      .catch((error) => {
+        if (voteOptionBatchRequest.current !== requestToken) return
+        const fallbackByMoment = new Map(missingMoments.map((moment) => [
+          moment.id,
+          fallbackMoments[moment.index - 1]?.voteOptions || [],
+        ]))
+        setMoments((current) => current.map((moment) => {
+          const fallbackOptions = fallbackByMoment.get(moment.id)
+          return fallbackOptions?.length >= 3 ? { ...moment, voteOptions: fallbackOptions } : moment
+        }))
+        setVoteOptionState((current) => {
+          const next = { ...current }
+          missingMoments.forEach((moment) => {
+            const hasFallback = fallbackByMoment.get(moment.id)?.length >= 3
+            next[moment.id] = {
+              status: hasFallback ? 'fallback' : 'error',
+              message: `${error.code || 'VOTE_OPTIONS_FAILED'}：${error.message}`,
+            }
+          })
+          return next
+        })
+      })
+  }, [fallbackMoments, moments, voteOptionState])
+
   function locateOriginal() {
     const id = activeMoment.anchorParagraphId || fallbackMoments[activeMoment.index - 1]?.anchorParagraphId
     if (!id) return
@@ -217,6 +291,14 @@ export default function Reading() {
       if (prev.includes(id)) return prev.filter((x) => x !== id)
       if (prev.length >= 2) return prev
       return [...prev, id]
+    })
+  }
+
+  function retryVoteOptions() {
+    setVoteOptionState((current) => {
+      const next = { ...current }
+      delete next[activeMoment.id]
+      return next
     })
   }
 
@@ -322,6 +404,8 @@ export default function Reading() {
   const primaryLabel = activeMoment.voteOptions.find((o) => o.id === primaryChoice)?.label
   const primaryPct = activeMoment.voteResults[primaryChoice] || 0
   const activeRecommendation = recommendationState[activeMoment.id]
+  const activeVoteOptionState = voteOptionState[activeMoment.id]
+  const voteOptionsReady = activeMoment.voteOptions?.length >= 3
 
   return (
     <div className="app-shell reading-shell">
@@ -474,26 +558,47 @@ export default function Reading() {
               {!submitted ? (
                 <div className="vote-block">
                   <h4>你更接近哪一种看法？（可多选，最多 2 项）</h4>
-                  <div className="vote-grid">
-                    {activeMoment.voteOptions.map((opt) => (
+                  {!voteOptionsReady ? (
+                    <div className={`vote-options-status${activeVoteOptionState?.status === 'error' ? ' error' : ''}`}>
+                      {activeVoteOptionState?.status === 'error' ? (
+                        <>
+                          <span>投票选项暂未生成：{activeVoteOptionState.message}</span>
+                          <button type="button" onClick={retryVoteOptions}>重试</button>
+                        </>
+                      ) : (
+                        <>
+                          <span>正在后台准备所有观点的投票选项…</span>
+                          <div className="vote-options-progress"><i /></div>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      {activeVoteOptionState?.status === 'fallback' && (
+                        <div className="vote-options-fallback">实时选项暂未生成，先展示示例选项。</div>
+                      )}
+                      <div className="vote-grid">
+                        {activeMoment.voteOptions.map((opt) => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            className={`vote-option${selectedVotes.includes(opt.id) ? ' selected' : ''}`}
+                            onClick={() => toggleVote(opt.id)}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
                       <button
-                        key={opt.id}
                         type="button"
-                        className={`vote-option${selectedVotes.includes(opt.id) ? ' selected' : ''}`}
-                        onClick={() => toggleVote(opt.id)}
+                        className="btn btn-primary btn-block"
+                        disabled={selectedVotes.length === 0}
+                        onClick={submitVote}
                       >
-                        {opt.label}
+                        提交我的选择
                       </button>
-                    ))}
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-block"
-                    disabled={selectedVotes.length === 0}
-                    onClick={submitVote}
-                  >
-                    提交我的选择
-                  </button>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="vote-result">

@@ -36,8 +36,7 @@ function validateMoments(data, paragraphIds) {
     })
   }
   return data.moments.map((moment, index) => {
-    const voteOptions = Array.isArray(moment.voteOptions) ? moment.voteOptions.slice(0, 4) : []
-    if (!moment.title || !moment.coreQuestion || !moment.searchQuery || voteOptions.length < 3) {
+    if (!moment.title || !moment.coreQuestion || !moment.searchQuery) {
       throw Object.assign(new Error(`AI 返回的第 ${index + 1} 个讨论瞬间字段不完整`), {
         code: 'AI_OUTPUT_INVALID',
         status: 502,
@@ -53,11 +52,41 @@ function validateMoments(data, paragraphIds) {
       anchorParagraphId: paragraphIds.has(String(moment.anchorParagraphId))
         ? String(moment.anchorParagraphId)
         : null,
-      voteOptions: voteOptions.map((label, optionIndex) => ({
-        id: `v${optionIndex + 1}`,
-        label: String(label),
-      })),
+      voteOptions: [],
     }
+  })
+}
+
+function validateVoteOptions(data) {
+  const rawOptions = Array.isArray(data?.voteOptions) ? data.voteOptions : []
+  const labels = [...new Set(rawOptions.map((option) => String(option || '').trim()).filter(Boolean))].slice(0, 4)
+  if (labels.length < 3) {
+    throw Object.assign(new Error('AI 返回的投票选项必须为 3～4 个'), {
+      code: 'AI_OUTPUT_INVALID',
+      status: 502,
+    })
+  }
+  return labels.map((label, index) => ({ id: `v${index + 1}`, label }))
+}
+
+function validateVoteOptionSets(data, moments) {
+  if (!Array.isArray(data?.optionSets)) {
+    throw Object.assign(new Error('AI 未返回投票选项集合'), {
+      code: 'AI_OUTPUT_INVALID',
+      status: 502,
+    })
+  }
+  const byId = new Map(data.optionSets.map((item) => [String(item?.momentId || ''), item]))
+  return moments.map((moment) => {
+    const momentId = String(moment.id)
+    const matched = byId.get(momentId)
+    if (!matched) {
+      throw Object.assign(new Error(`AI 未返回观点 ${momentId} 的投票选项`), {
+        code: 'AI_OUTPUT_INVALID',
+        status: 502,
+      })
+    }
+    return { momentId, voteOptions: validateVoteOptions(matched) }
   })
 }
 
@@ -184,7 +213,7 @@ export async function analyzeArticle(article) {
   const paragraphText = paragraphs
     .map((paragraph, index) => `[${paragraph.id || `p${index + 1}`}] ${paragraph.text || ''}`)
     .join('\n')
-  const prompt = `你是知乎社区讨论策展助手。分析下面的文章，找出 3～6 个可以跨内容继续讨论的“讨论瞬间”。\n\n要求：\n1. 每个瞬间必须有明确分歧、选择或普适问题。\n2. searchQuery 要适合用于知乎站内搜索，简洁且包含核心概念。\n3. voteOptions 必须是 3～4 个互斥、可理解的中文观点，只返回字符串数组。\n4. anchorParagraphId 必须来自段落方括号中的 ID。\n5. 只输出 JSON，不要 Markdown。\n\nJSON 结构：\n{"moments":[{"title":"短标题","coreQuestion":"讨论问题","summary":"为什么值得讨论","searchQuery":"知乎搜索词","anchorParagraphId":"p1","voteOptions":["观点一","观点二","观点三"]}]}\n\n文章标题：${article.title}\n作者：${article.author || '未知'}\n正文：\n${paragraphText}`
+  const prompt = `你是知乎社区讨论策展助手。分析下面的文章，找出 3～6 个可以跨内容继续讨论的“讨论瞬间”。这是快速首屏分析，只生成讨论骨架，不生成投票选项。\n\n要求：\n1. 每个瞬间必须有明确分歧、选择或普适问题。\n2. searchQuery 要适合用于知乎站内搜索，简洁且包含核心概念。\n3. anchorParagraphId 必须来自段落方括号中的 ID。\n4. 不要输出 voteOptions 或其他扩展字段。\n5. 只输出 JSON，不要 Markdown。\n\nJSON 结构：\n{"moments":[{"title":"短标题","coreQuestion":"讨论问题","summary":"为什么值得讨论","searchQuery":"知乎搜索词","anchorParagraphId":"p1"}]}\n\n文章标题：${article.title}\n作者：${article.author || '未知'}\n正文：\n${paragraphText}`
 
   let response
   try {
@@ -236,6 +265,68 @@ export async function analyzeArticle(article) {
     })
   }
   return validateMoments(parsed, new Set(paragraphs.map((paragraph) => String(paragraph.id))))
+}
+
+export async function generateVoteOptionSets(moments) {
+  requireAiConfig()
+  const safeMoments = Array.isArray(moments)
+    ? moments.slice(0, 6).map((moment, index) => ({
+        id: String(moment?.id || `moment-${index + 1}`),
+        title: String(moment?.title || '').trim(),
+        coreQuestion: String(moment?.coreQuestion || '').trim(),
+        summary: String(moment?.summary || '').trim(),
+      }))
+    : []
+  if (safeMoments.length === 0 || safeMoments.some((moment) => !moment.coreQuestion)) {
+    throw Object.assign(new Error('至少需要一个包含核心问题的讨论观点'), {
+      code: 'VOTE_OPTIONS_INPUT_REQUIRED',
+      status: 400,
+    })
+  }
+  const prompt = `你是知乎社区讨论策展助手。为下面每个讨论观点分别生成 3～4 个互斥、清晰、普通用户容易选择的中文投票选项。\n\n要求：\n1. 每个观点都必须返回一次，momentId 必须原样保留。\n2. 每组选项之间要有真实分歧，覆盖主要立场。\n3. 每项尽量不超过 16 个中文字。\n4. 只输出 JSON，不要 Markdown。\n\nJSON 结构：\n{"optionSets":[{"momentId":"ai-m1","voteOptions":["观点一","观点二","观点三"]}]}\n\n讨论观点 JSON：\n${JSON.stringify(safeMoments)}`
+
+  let response
+  try {
+    response = await fetch(`${aiConfig.baseUrl}/responses`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${aiConfig.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: aiConfig.model, input: prompt }),
+      signal: AbortSignal.timeout(AI_TIMEOUT_MS),
+    })
+  } catch (error) {
+    const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError'
+    throw Object.assign(new Error(timedOut ? '批量投票选项生成超过 90 秒' : 'AI 投票选项服务暂时无法连接'), {
+      code: timedOut ? 'AI_TIMEOUT' : 'AI_REQUEST_FAILED',
+      status: timedOut ? 504 : 502,
+    })
+  }
+  const payload = await response.json().catch((error) => {
+    const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError'
+    throw Object.assign(new Error(timedOut ? 'AI 响应超过 90 秒' : 'AI 响应不是有效 JSON'), {
+      code: timedOut ? 'AI_TIMEOUT' : 'AI_OUTPUT_INVALID',
+      status: timedOut ? 504 : 502,
+    })
+  })
+  if (!response.ok) {
+    throw Object.assign(new Error(payload?.error?.message || `AI 请求失败（HTTP ${response.status}）`), {
+      code: response.status === 429 ? 'AI_RATE_LIMITED' : 'AI_REQUEST_FAILED',
+      status: response.status === 429 ? 429 : 502,
+    })
+  }
+  try {
+    return validateVoteOptionSets(parseJsonText(extractOutputText(payload)), safeMoments)
+  } catch (error) {
+    if (error?.code) throw error
+    throw Object.assign(new Error('AI 未返回可解析的投票选项集合 JSON'), {
+      code: 'AI_OUTPUT_INVALID',
+      status: 502,
+    })
+  }
+}
+
+export async function generateVoteOptions(moment) {
+  const [result] = await generateVoteOptionSets([moment])
+  return result.voteOptions
 }
 
 export async function chatWithPersona({ persona, messages }) {

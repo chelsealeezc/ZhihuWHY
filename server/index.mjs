@@ -12,7 +12,7 @@ import {
   getCollections,
   getContents,
 } from './oauth.mjs'
-import { analyzeArticle, chatWithPersona, classifyRelatedContent } from './ai.mjs'
+import { analyzeArticle, chatWithPersona, classifyRelatedContent, generateVoteOptionSets } from './ai.mjs'
 import { searchZhihu } from './zhihu.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -142,6 +142,22 @@ const server = http.createServer(async (req, res) => {
         return json(res, e.status || 500, {
           ok: false,
           error: { code: e.code || 'ANALYZE_FAILED', message: e.message },
+        })
+      }
+    }
+
+    if (p === '/api/discussions/options' && req.method === 'POST') {
+      try {
+        const body = await readJson(req)
+        const requestedMoments = Array.isArray(body.moments)
+          ? body.moments
+          : [body.moment].filter(Boolean)
+        const optionSets = await generateVoteOptionSets(requestedMoments)
+        return json(res, 200, { ok: true, optionSets })
+      } catch (e) {
+        return json(res, e.status || 500, {
+          ok: false,
+          error: { code: e.code || 'VOTE_OPTIONS_FAILED', message: e.message },
         })
       }
     }
