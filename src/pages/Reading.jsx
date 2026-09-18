@@ -107,7 +107,6 @@ function RecommendationGroup({ title, tone, items, refining = false }) {
             ? compactViewpoint(refinedViewpoint)
             : compactViewpoint(item.title || item.why || '相关内容')
           const sourceExcerpt = item.quote || ''
-          const classificationReason = item.why && item.why !== viewpoint ? item.why : ''
           return (
             <div key={`${tone}-${item.id}`} className="related-item recommendation-item">
               <div className="recommendation-viewpoint">{viewpoint}</div>
@@ -130,9 +129,6 @@ function RecommendationGroup({ title, tone, items, refining = false }) {
                   <summary>{refining || !refinedViewpoint ? '展开原文摘要' : '查看原文摘要'}</summary>
                   <p>{sourceExcerpt}</p>
                 </details>
-              )}
-              {classificationReason && (
-                <div className="why">分类依据：{classificationReason}</div>
               )}
             </div>
           )
