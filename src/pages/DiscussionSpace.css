@@ -288,8 +288,34 @@
 }
 
 .post-head .who {
+  display: block;
+  color: var(--text);
   font-size: 14px;
   font-weight: 650;
+}
+
+.post-head a.who:hover {
+  color: var(--zh-blue);
+}
+
+.post-follow,
+.persona-follow {
+  padding: 4px 9px;
+  border: 1px solid #b9d4fa;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--zh-blue);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.post-follow {
+  margin-left: auto;
+}
+
+.post-follow.followed,
+.persona-follow.followed {
+  background: var(--zh-blue-softer);
 }
 
 .post-head .from {
@@ -298,7 +324,7 @@
 }
 
 .stance-tag {
-  margin-left: auto;
+  margin-left: 0;
   padding: 4px 9px;
   border-radius: 999px;
   font-size: 11px;
@@ -745,6 +771,31 @@
   gap: 8px;
 }
 
+.persona-context .persona-identity {
+  align-items: center;
+}
+
+.persona-identity > div {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.persona-identity a {
+  color: var(--text);
+}
+
+.persona-identity a:hover {
+  color: var(--zh-blue);
+}
+
+.persona-identity .persona-follow {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
 .persona-context strong {
   font-size: 13px;
 }
@@ -764,8 +815,10 @@
 .persona-trigger {
   padding: 0;
   border: 0;
+  background: transparent;
   cursor: pointer;
   font: inherit;
+  line-height: 0;
   transition-property: transform, box-shadow;
   transition-duration: 150ms;
   transition-timing-function: ease-out;

@@ -15,14 +15,28 @@ function formatFavTime(ts) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-function mapCollectionItem(item) {
+function authorProfile(item, fallbackUser) {
+  const author = item.Author || {}
+  return {
+    name: author.Name || author.Fullname || item.AuthorName || fallbackUser?.name || '知乎用户',
+    avatar: author.AvatarUrl || author.Avatar || item.AuthorAvatar || fallbackUser?.avatar || '',
+    url: author.Url || item.AuthorUrl || '',
+    headline: author.Headline || item.AuthorHeadline || fallbackUser?.headline || '',
+  }
+}
+
+function mapCollectionItem(item, fallbackUser) {
+  const author = authorProfile(item, fallbackUser)
   return {
     id: item.Url || item.Title,
     url: item.Url || '',
     type: item.ContentType || 'answer',
     question: null,
     title: item.Title || '(无标题)',
-    author: item.Author?.Name || '匿名用户',
+    author: author.name,
+    authorAvatar: author.avatar,
+    authorUrl: author.url,
+    authorHeadline: author.headline,
     excerpt: item.Summary || '',
     voteup: Number(item.LikeCount) || 0,
     comments: Number(item.CommentCount) || 0,
@@ -30,14 +44,17 @@ function mapCollectionItem(item) {
   }
 }
 
-function mapContentItem(item) {
+function mapContentItem(item, user) {
   return {
     id: item.Url || item.Title,
     url: item.Url || '',
     type: item.ContentType || 'answer',
     question: null,
     title: item.Title || '(无标题)',
-    author: '我',
+    author: user?.name || '我',
+    authorAvatar: user?.avatar || '',
+    authorUrl: user?.url || '',
+    authorHeadline: user?.headline || '',
     excerpt: item.Summary || '',
     voteup: Number(item.LikeCount) || 0,
     comments: Number(item.CommentCount) || 0,
@@ -53,6 +70,9 @@ function mapSearchItem(item) {
     question: null,
     title: item.title || '(无标题)',
     author: item.author || '知乎用户',
+    authorAvatar: item.authorAvatar || '',
+    authorUrl: item.authorUrl || '',
+    authorHeadline: item.authorHeadline || item.authorBadgeText || '',
     excerpt: item.quote || '',
     voteup: Number(item.voteup) || 0,
     comments: Number(item.comments) || 0,
@@ -95,13 +115,13 @@ export default function ContentPicker() {
         const collections = collectionsResult.status === 'fulfilled' ? collectionsResult.value : null
         const contents = contentsResult.status === 'fulfilled' ? contentsResult.value : null
         if (collections?.ok && Array.isArray(collections.items)) {
-          setItems(collections.items.map(mapCollectionItem))
+          setItems(collections.items.map((item) => mapCollectionItem(item, user)))
         } else {
           errors.push(collections?.error?.message || '获取收藏失败')
           setItems(mockFavorites)
         }
         if (contents?.ok && Array.isArray(contents.items)) {
-          setContentItems(contents.items.map(mapContentItem))
+          setContentItems(contents.items.map((item) => mapContentItem(item, user)))
         } else {
           errors.push(contents?.error?.message || '获取创作内容失败')
           setContentItems([])

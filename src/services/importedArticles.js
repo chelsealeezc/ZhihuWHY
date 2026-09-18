@@ -53,7 +53,9 @@ function toArticle(item) {
     sourceUrl: item.url || (String(item.id).startsWith('http') ? item.id : ''),
     author: {
       name: item.author || '知乎用户',
-      bio: '来自你的知乎收藏',
+      avatar: item.authorAvatar || '',
+      url: item.authorUrl || '',
+      bio: item.authorHeadline || '来自你的知乎内容',
       followers: null,
     },
     voteup: Number(item.voteup) || 0,

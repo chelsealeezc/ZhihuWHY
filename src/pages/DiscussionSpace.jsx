@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
+import FollowButton from '../components/FollowButton'
+import UserAvatar from '../components/UserAvatar'
 import { getSpace } from '../data/mock'
 import {
   DISCUSSION_SPACES_STORAGE_KEY,
@@ -364,18 +366,25 @@ export default function DiscussionSpace() {
                 <div className="post-head">
                   <button
                     type="button"
-                    className="avatar sm persona-trigger"
+                    className="persona-trigger"
                     onClick={() => openPersonaByName(post.user)}
                     title={`与 ${post.user} 的 AI 分身对话`}
                   >
-                    {post.user.slice(0, 1)}
+                    <UserAvatar name={post.user} src={post.avatar} size="sm" />
                   </button>
                   <div>
-                    <div className="who">{post.user}</div>
+                    {post.userUrl ? (
+                      <a className="who" href={post.userUrl} target="_blank" rel="noreferrer">{post.user}</a>
+                    ) : (
+                      <div className="who">{post.user}</div>
+                    )}
                     <div className="from">
                       {post.from} · {post.time}
                     </div>
                   </div>
+                  {post.user !== '我' && (
+                    <FollowButton authorKey={post.userUrl || post.user} className="post-follow" />
+                  )}
                   <span className={`stance-tag ${postClassificationPending || postClassificationFailed ? 'pending' : post.stance}`}>
                     {postClassificationPending
                       ? '正在判断'
@@ -486,7 +495,7 @@ export default function DiscussionSpace() {
                   disabled={chatSending}
                   onClick={() => openPersona(person)}
                 >
-                  <span className="avatar sm">{person.name.slice(0, 1)}</span>
+                  <UserAvatar name={person.name} src={person.avatar} size="sm" />
                   <span>{person.name}</span>
                 </button>
               ))}
@@ -494,9 +503,17 @@ export default function DiscussionSpace() {
             {activePersona ? (
               <div className="persona-chatbox">
                 <div className="persona-context">
-                  <div>
-                    <strong>{activePersona.name}</strong>
-                    <span>{activePersona.stance}</span>
+                  <div className="persona-identity">
+                    <UserAvatar name={activePersona.name} src={activePersona.avatar} size="sm" />
+                    <div>
+                      {activePersona.url ? (
+                        <a href={activePersona.url} target="_blank" rel="noreferrer"><strong>{activePersona.name}</strong></a>
+                      ) : (
+                        <strong>{activePersona.name}</strong>
+                      )}
+                      <span>{activePersona.headline || activePersona.stance}</span>
+                    </div>
+                    <FollowButton authorKey={activePersona.url || activePersona.name} className="persona-follow" />
                   </div>
                   <p
                     ref={descriptionRef}
@@ -561,7 +578,7 @@ export default function DiscussionSpace() {
             <div className="source-list">
               {space.sources.map((src) => (
                 <div key={src.id} className="source-item">
-                  <div className="avatar sm">文</div>
+                  <UserAvatar name={src.author} src={src.authorAvatar} size="sm" />
                   <div>
                     {src.url ? (
                       <a className="title" href={src.url} target="_blank" rel="noreferrer">

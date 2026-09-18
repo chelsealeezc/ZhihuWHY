@@ -18,7 +18,7 @@ globalThis.localStorage = {
   setItem: (key, value) => store.set(key, value),
 }
 const related = [
-  { id: 'a', author: '甲', quote: '及时反馈让我容易开始。', title: '反馈', why: '围绕「执行力」提供了相关观点或真实经历。' },
+  { id: 'a', author: '甲', authorAvatar: 'https://example.com/a.png', authorUrl: 'https://www.zhihu.com/people/a', quote: '及时反馈让我容易开始。', title: '反馈', why: '围绕「执行力」提供了相关观点或真实经历。' },
   { id: 'b', author: '乙', quote: '我的困难是任务太模糊。', title: '任务', why: '围绕「执行力」提供了相关观点或真实经历。' },
 ]
 const moment = { id: 'test', coreQuestion: '为什么难开始', searchQuery: '执行力', voteOptions: [], related }
@@ -41,10 +41,15 @@ test('imported articles retain a generic incomplete-source signal', () => {
     id: 'cmos-oscillators',
     title: '模拟 CMOS 集成电路：振荡器基础',
     author: 'YiDingg',
+    authorAvatar: 'https://example.com/yidingg.png',
+    authorUrl: 'https://www.zhihu.com/people/yidingg',
     excerpt: '我们先回顾反馈系统中的振荡现象，然后介绍 ring oscillator...',
     url: 'https://www.zhihu.com/example/cmos-oscillators',
   }])
   assert.equal(saved.sourceIncomplete, true)
+  assert.equal(saved.author.name, 'YiDingg')
+  assert.equal(saved.author.avatar, 'https://example.com/yidingg.png')
+  assert.equal(saved.author.url, 'https://www.zhihu.com/people/yidingg')
   assert.equal(getImportedArticle(saved.id).sourceIncomplete, true)
 })
 
@@ -53,6 +58,8 @@ test('unrefined authors retain distinct source text and unknown stance', () => {
   assert.deepEqual(space.posts.map((p) => p.text), related.map((p) => p.quote))
   assert.ok(space.posts.every((p) => p.stance === 'neutral' && !p.refined))
   assert.equal(getSavedDiscussionSpace('test').worthChat[0].claim, related[0].quote)
+  assert.equal(space.posts[0].avatar, related[0].authorAvatar)
+  assert.equal(space.worthChat[0].url, related[0].authorUrl)
 })
 
 test('pending classification state survives transfer to the discussion space', () => {
@@ -137,6 +144,28 @@ test('empty search retries core question once; errors do not trigger fallback', 
     }
     await assert.rejects(searchZhihu('主题词', 4, '核心问题'), { code: 'RATE_LIMITED' })
     assert.equal(calls, 1)
+  } finally { globalThis.fetch = old }
+})
+
+test('search preserves the real author nickname and avatar', async () => {
+  const old = globalThis.fetch
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({ Code: 0, Data: { Items: [{
+      ContentID: 'answer-1',
+      Title: '真实回答',
+      Url: 'https://www.zhihu.com/answer/1',
+      AuthorName: '时光纪',
+      AuthorAvatar: 'https://picx.zhimg.com/avatar.jpg',
+      ContentText: '回答摘要',
+    }] } }),
+  })
+  try {
+    const result = await searchZhihu('测试', 1)
+    assert.equal(result.items[0].author, '时光纪')
+    assert.equal(result.items[0].authorAvatar, 'https://picx.zhimg.com/avatar.jpg')
+    assert.equal(result.items[0].url, 'https://www.zhihu.com/answer/1')
+    assert.equal(result.items[0].authorUrl, '')
   } finally { globalThis.fetch = old }
 })
 

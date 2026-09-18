@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Topbar from '../components/Topbar'
+import FollowButton from '../components/FollowButton'
+import UserAvatar from '../components/UserAvatar'
 import { getArticle, getMoments } from '../data/mock'
 import {
   analyzeArticle,
@@ -38,6 +40,9 @@ function mapRelatedItem(item, moment) {
     id: item.id || item.url,
     title: item.title || '知乎内容',
     author: item.author,
+    authorAvatar: item.authorAvatar || '',
+    authorUrl: item.authorUrl || '',
+    authorHeadline: item.authorHeadline || item.authorBadgeText || '',
     voteup: item.voteup,
     quote: item.quote,
     url: item.url,
@@ -416,17 +421,27 @@ export default function Reading() {
         <article className="card article-pane">
           <h1 className="question">{article.question}</h1>
           <div className="author-row">
-            <div className="avatar">{article.author.name.slice(0, 1)}</div>
+            {article.author.url ? (
+              <a href={article.author.url} target="_blank" rel="noreferrer" aria-label={`打开 ${article.author.name} 的知乎主页`}>
+                <UserAvatar name={article.author.name} src={article.author.avatar} />
+              </a>
+            ) : (
+              <UserAvatar name={article.author.name} src={article.author.avatar} />
+            )}
             <div>
-              <div className="name">{article.author.name}</div>
+              {article.author.url ? (
+                <a className="name" href={article.author.url} target="_blank" rel="noreferrer">
+                  {article.author.name}
+                </a>
+              ) : (
+                <div className="name">{article.author.name}</div>
+              )}
               <div className="bio">
                 {article.author.bio}
                 {article.author.followers ? ` · ${article.author.followers} 关注` : ''}
               </div>
             </div>
-            <button type="button" className="btn btn-secondary follow-button">
-              + 关注
-            </button>
+            <FollowButton authorKey={article.author.url || article.author.name} className="btn btn-secondary follow-button" />
           </div>
 
           <div className="article-body" ref={articleBodyRef}>
@@ -576,8 +591,12 @@ export default function Reading() {
                     ) : (
                       <div className="title">{item.title}</div>
                     )}
-                    <div className="meta">
-                      {item.author} · {item.voteup} 赞同
+                    <div className="related-author meta">
+                      <UserAvatar name={item.author} src={item.authorAvatar} size="sm" />
+                      {item.authorUrl ? (
+                        <a href={item.authorUrl} target="_blank" rel="noreferrer">{item.author}</a>
+                      ) : item.author}
+                      <span>· {item.voteup} 赞同</span>
                     </div>
                     {item.quote && <div className="quote">“{item.quote}”</div>}
                     <div className="why">为什么相关：{item.why}</div>
