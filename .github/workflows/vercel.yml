@@ -15,8 +15,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  VERCEL_TOKEN_RAW: ${{ secrets.VERCEL_TOKEN }}
+  VERCEL_ORG_ID_RAW: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID_RAW: ${{ secrets.VERCEL_PROJECT_ID }}
 
 jobs:
   preview:
@@ -34,9 +35,14 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npx --yes vercel@59.23.0 pull --yes --environment=preview --token="${{ secrets.VERCEL_TOKEN }}"
-      - run: npx --yes vercel@59.23.0 build --token="${{ secrets.VERCEL_TOKEN }}"
-      - run: npx --yes vercel@59.23.0 deploy --prebuilt --token="${{ secrets.VERCEL_TOKEN }}"
+      - name: Pull Vercel preview environment
+        run: |
+          export VERCEL_ORG_ID="${VERCEL_ORG_ID_RAW#VERCEL_ORG_ID=}"
+          export VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID_RAW#VERCEL_PROJECT_ID=}"
+          token="${VERCEL_TOKEN_RAW#VERCEL_TOKEN=}"
+          npx --yes vercel@59.23.0 pull --yes --environment=preview --token="$token"
+          npx --yes vercel@59.23.0 build --token="$token"
+          npx --yes vercel@59.23.0 deploy --prebuilt --token="$token"
 
   production:
     name: Production deployment
@@ -53,6 +59,11 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npx --yes vercel@59.23.0 pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
-      - run: npx --yes vercel@59.23.0 build --prod --token="${{ secrets.VERCEL_TOKEN }}"
-      - run: npx --yes vercel@59.23.0 deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
+      - name: Deploy Vercel production environment
+        run: |
+          export VERCEL_ORG_ID="${VERCEL_ORG_ID_RAW#VERCEL_ORG_ID=}"
+          export VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID_RAW#VERCEL_PROJECT_ID=}"
+          token="${VERCEL_TOKEN_RAW#VERCEL_TOKEN=}"
+          npx --yes vercel@59.23.0 pull --yes --environment=production --token="$token"
+          npx --yes vercel@59.23.0 build --prod --token="$token"
+          npx --yes vercel@59.23.0 deploy --prebuilt --prod --token="$token"
