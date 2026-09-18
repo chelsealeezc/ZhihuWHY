@@ -37,9 +37,11 @@ jobs:
       - run: npm ci
       - name: Pull Vercel preview environment
         run: |
-          export VERCEL_ORG_ID="${VERCEL_ORG_ID_RAW#VERCEL_ORG_ID=}"
-          export VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID_RAW#VERCEL_PROJECT_ID=}"
-          token="${VERCEL_TOKEN_RAW#VERCEL_TOKEN=}"
+          export VERCEL_ORG_ID="${VERCEL_ORG_ID_RAW##*=}"
+          export VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID_RAW##*=}"
+          token="${VERCEL_TOKEN_RAW##*=}"
+          token="${token#\"}"
+          token="${token%\"}"
           npx --yes vercel@59.23.0 pull --yes --environment=preview --token="$token"
           npx --yes vercel@59.23.0 build --token="$token"
           npx --yes vercel@59.23.0 deploy --prebuilt --token="$token"
@@ -61,9 +63,11 @@ jobs:
       - run: npm ci
       - name: Deploy Vercel production environment
         run: |
-          export VERCEL_ORG_ID="${VERCEL_ORG_ID_RAW#VERCEL_ORG_ID=}"
-          export VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID_RAW#VERCEL_PROJECT_ID=}"
-          token="${VERCEL_TOKEN_RAW#VERCEL_TOKEN=}"
+          export VERCEL_ORG_ID="${VERCEL_ORG_ID_RAW##*=}"
+          export VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID_RAW##*=}"
+          token="${VERCEL_TOKEN_RAW##*=}"
+          token="${token#\"}"
+          token="${token%\"}"
           npx --yes vercel@59.23.0 pull --yes --environment=production --token="$token"
           npx --yes vercel@59.23.0 build --prod --token="$token"
           npx --yes vercel@59.23.0 deploy --prebuilt --prod --token="$token"
