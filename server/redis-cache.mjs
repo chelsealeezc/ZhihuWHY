@@ -20,7 +20,9 @@ export function createRedisCache({ fetchImpl = fetch, logger = console } = {}) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(parts),
-      signal: AbortSignal.timeout(2_000),
+      // Upstash's first request can include a cold connection; keep this well
+      // below the recommendation AI timeout while allowing normal Vercel RTT.
+      signal: AbortSignal.timeout(8_000),
     })
     if (!response.ok) throw new Error(`Redis request failed (HTTP ${response.status})`)
     const payload = await response.json()
