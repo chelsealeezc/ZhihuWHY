@@ -641,9 +641,6 @@ export default function Reading() {
 
               <div className="core-card">
                 <div className="tag">{activeMoment.source === 'selection' ? '你选中的原文' : '答主的核心看法'}</div>
-                {activeMoment.source === 'selection' && (
-                  <blockquote className="selected-source-quote">“{activeMoment.selectedText}”</blockquote>
-                )}
                 <h3>{activeMoment.coreQuestion}</h3>
                 <p>{activeMoment.summary}</p>
                 <div className="core-meta">
