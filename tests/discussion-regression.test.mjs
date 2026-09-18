@@ -12,6 +12,7 @@ const {
 const { classifyRelatedContent, expandSelection } = await import('../server/ai.mjs')
 const { searchZhihu } = await import('../server/zhihu.mjs')
 const { dispatch } = await import('../api/_handler.mjs')
+const { articleAnalysisRequest } = await import('../src/services/articleAnalysis.js')
 const store = new Map()
 globalThis.localStorage = {
   getItem: (key) => store.get(key) || null,
@@ -23,6 +24,36 @@ const related = [
 ]
 const moment = { id: 'test', coreQuestion: '为什么难开始', searchQuery: '执行力', voteOptions: [], related }
 const article = { id: 'article', question: '测试文章', author: { name: '作者' } }
+
+test('built-in articles use precomputed moments without invoking AI analysis', async () => {
+  const fallbackMoments = [{ id: 'built-in-moment' }]
+  let calls = 0
+  const analysis = articleAnalysisRequest(
+    { id: 'success-energy' },
+    fallbackMoments,
+    () => {
+      calls++
+      throw new Error('must not call live analysis')
+    },
+  )
+  assert.equal(analysis.mode, 'precomputed')
+  assert.equal(await analysis.request, fallbackMoments)
+  assert.equal(calls, 0)
+})
+
+test('imported articles continue to use live AI analysis', async () => {
+  const liveMoments = [{ id: 'live-moment' }]
+  let calls = 0
+  const imported = { id: 'imported-123' }
+  const analysis = articleAnalysisRequest(imported, [], async (received) => {
+    calls++
+    assert.equal(received, imported)
+    return liveMoments
+  })
+  assert.equal(analysis.mode, 'live')
+  assert.equal(await analysis.request, liveMoments)
+  assert.equal(calls, 1)
+})
 
 test('truncated summaries are recognized across common ellipsis styles', () => {
   for (const text of [
@@ -102,6 +133,63 @@ test('body timeout is reported as timeout instead of malformed model output', as
   } finally { globalThis.fetch = old }
 })
 
+test('recommendation retries one transient network failure and then succeeds', async () => {
+  const old = globalThis.fetch
+  let calls = 0
+  globalThis.fetch = async () => {
+    calls++
+    if (calls === 1) throw new TypeError('Failed to fetch')
+    return {
+      ok: true,
+      json: async () => ({ ok: true, groups: { same: related, different: [], neutral: [] } }),
+    }
+  }
+  try {
+    const { recommendRelatedContent } = await import('../src/services/discussions.js')
+    const groups = await recommendRelatedContent(moment, ['主要靠个人意志和能力'])
+    assert.equal(calls, 2)
+    assert.equal(groups.same.length, 2)
+  } finally { globalThis.fetch = old }
+})
+
+test('recommendation does not retry a permanent client error', async () => {
+  const old = globalThis.fetch
+  let calls = 0
+  globalThis.fetch = async () => {
+    calls++
+    return {
+      ok: false,
+      status: 400,
+      json: async () => ({ ok: false, error: { code: 'RECOMMENDATION_INPUT_REQUIRED', message: '参数不完整' } }),
+    }
+  }
+  try {
+    const { recommendRelatedContent } = await import('../src/services/discussions.js')
+    await assert.rejects(
+      recommendRelatedContent(moment, ['主要靠个人意志和能力']),
+      { code: 'RECOMMENDATION_INPUT_REQUIRED' },
+    )
+    assert.equal(calls, 1)
+  } finally { globalThis.fetch = old }
+})
+
+test('recommendation hides the browser Failed to fetch wording after both attempts fail', async () => {
+  const old = globalThis.fetch
+  let calls = 0
+  globalThis.fetch = async () => {
+    calls++
+    throw new TypeError('Failed to fetch')
+  }
+  try {
+    const { recommendRelatedContent } = await import('../src/services/discussions.js')
+    await assert.rejects(
+      recommendRelatedContent(moment, ['主要靠个人意志和能力']),
+      (error) => error.code === 'RECOMMEND_UNAVAILABLE' && !error.message.includes('Failed to fetch'),
+    )
+    assert.equal(calls, 2)
+  } finally { globalThis.fetch = old }
+})
+
 test('unparseable model JSON exposes a specific error code', async () => {
   const old = globalThis.fetch
   globalThis.fetch = async () => ({ ok: true, json: async () => ({ output_text: 'invalid' }) })
@@ -110,14 +198,56 @@ test('unparseable model JSON exposes a specific error code', async () => {
   } finally { globalThis.fetch = old }
 })
 
-test('missing classifications do not invent shared viewpoints', async () => {
+test('missing classifications do not invent shared claims', async () => {
   const old = globalThis.fetch
-  globalThis.fetch = async () => ({ ok: true, json: async () => ({ output_text: '{"classifications":[]}' }) })
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ output_text: '{"c":[]}' }) })
   try {
-    const groups = await classifyRelatedContent(moment, ['选项'], related)
-    assert.ok(groups.neutral.every((p) => p.viewpoint === '' && p.claim === ''))
+    const groups = await classifyRelatedContent({ ...moment, coreQuestion: '缺少分类测试' }, ['选项'], related)
+    assert.ok(groups.neutral.every((p) => p.claim === '' && p.viewpoint === undefined))
     const space = saveDiscussionSpace({ ...moment, related: groups.neutral }, article, [])
     assert.deepEqual(space.posts.map((p) => p.text), related.map((p) => p.quote))
+  } finally { globalThis.fetch = old }
+})
+
+test('recommendation output does not generate or preserve classification reasons', async () => {
+  const old = globalThis.fetch
+  let requestBody
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({ output_text: JSON.stringify({ c: [[0, 's', '即时反馈能降低启动难度。', 90]] }) }),
+  })
+  try {
+    globalThis.fetch = async (_url, options) => {
+      requestBody = JSON.parse(options.body)
+      return { ok: true, json: async () => ({ output_text: '{"c":[[0,"s","即时反馈能降低启动难度。",90]]}' }) }
+    }
+    const groups = await classifyRelatedContent(
+      { ...moment, coreQuestion: '紧凑输出测试' },
+      ['主要靠个人意志和能力'],
+      related,
+    )
+    assert.equal(groups.same[0].reason, undefined)
+    assert.equal(groups.same[0].viewpoint, undefined)
+    assert.equal(groups.same[0].claim, '即时反馈能降低启动难度。')
+    assert.equal(requestBody.model, 'gpt-5.6-luna')
+    assert.equal(requestBody.max_output_tokens, 300)
+  } finally { globalThis.fetch = old }
+})
+
+test('recommendation classification is cached for 24-hour reuse', async () => {
+  const old = globalThis.fetch
+  let calls = 0
+  globalThis.fetch = async () => {
+    calls++
+    return { ok: true, json: async () => ({ output_text: '{"c":[[0,"s","反馈能帮助开始",88]]}' }) }
+  }
+  try {
+    const cacheMoment = { ...moment, coreQuestion: '缓存是否复用？' }
+    const first = await classifyRelatedContent(cacheMoment, ['是'], related)
+    const second = await classifyRelatedContent(cacheMoment, ['是'], related)
+    assert.equal(calls, 1)
+    assert.deepEqual(second, first)
+    assert.notEqual(second, first)
   } finally { globalThis.fetch = old }
 })
 

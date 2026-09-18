@@ -11,7 +11,20 @@ import {
 } from '../services/discussions'
 import { getImportedArticle } from '../services/importedArticles'
 import { saveDiscussionSpace } from '../services/discussionSpaces'
+import { articleAnalysisRequest } from '../services/articleAnalysis'
 import './Reading.css'
+
+const SELECTION_HIGHLIGHT_NAME = 'selected-discussion-source'
+
+function showPersistentSelectionHighlight(range) {
+  if (!range || !window.CSS?.highlights || typeof window.Highlight !== 'function') return false
+  window.CSS.highlights.set(SELECTION_HIGHLIGHT_NAME, new window.Highlight(range))
+  return true
+}
+
+function clearPersistentSelectionHighlight() {
+  window.CSS?.highlights?.delete(SELECTION_HIGHLIGHT_NAME)
+}
 
 function createLiveMoment(moment, fallbackMoment) {
   return {
@@ -46,9 +59,8 @@ function mapRelatedItem(item, moment) {
     comments: item.comments,
     stance: item.stance === 'different' ? 'diff' : item.stance,
     claim: item.claim,
-    viewpoint: item.viewpoint,
     relevanceScore: item.relevanceScore,
-    why: item.reason || `围绕「${moment.searchQuery}」提供了相关观点或真实经历。`,
+    why: item.why || '',
   }
 }
 
@@ -102,7 +114,7 @@ function RecommendationGroup({ title, tone, items, refining = false }) {
         <div className="recommendation-empty">暂时没有足够明确的内容</div>
       ) : (
         items.map((item) => {
-          const refinedViewpoint = item.viewpoint || item.claim
+          const refinedViewpoint = item.claim
           const viewpoint = refinedViewpoint
             ? compactViewpoint(refinedViewpoint)
             : compactViewpoint(item.title || item.why || '相关内容')
@@ -215,6 +227,7 @@ export default function Reading() {
       const rect = range.getBoundingClientRect()
       setSelectionAction({
         text,
+        range: range.cloneRange(),
         paragraphId: paragraph?.dataset.paragraphId || null,
         contextBefore: paragraph?.previousElementSibling?.textContent?.replace(/\s+/g, ' ').trim().slice(-240) || '',
         contextAfter: paragraph?.nextElementSibling?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 240) || '',
@@ -226,6 +239,7 @@ export default function Reading() {
     window.addEventListener('mouseup', updateSelectionAction)
     window.addEventListener('keyup', updateSelectionAction)
     return () => {
+      clearPersistentSelectionHighlight()
       document.removeEventListener('selectionchange', updateSelectionAction)
       window.removeEventListener('mouseup', updateSelectionAction)
       window.removeEventListener('keyup', updateSelectionAction)
@@ -233,6 +247,7 @@ export default function Reading() {
   }, [])
 
   useEffect(() => {
+    clearPersistentSelectionHighlight()
     setLoading(true)
     setSubmitted(false)
     setSelectedVotes([])
@@ -247,7 +262,9 @@ export default function Reading() {
     recommendationRequests.current = {}
     let cancelled = false
 
-    analyzeArticle(article)
+    const analysis = articleAnalysisRequest(article, fallbackMoments, analyzeArticle)
+
+    analysis.request
       .then((generated) => {
         if (cancelled) return
         const liveMoments = generated.map((moment, index) =>
@@ -255,7 +272,7 @@ export default function Reading() {
         )
         setMoments(liveMoments)
         setActiveMomentId(liveMoments[0]?.id)
-        setAnalysisMode('live')
+        setAnalysisMode(analysis.mode)
       })
       .catch((error) => {
         if (cancelled) return
@@ -322,38 +339,21 @@ export default function Reading() {
     })
   }
 
-  async function submitVote() {
-    if (selectedVotes.length === 0) return
-    const moment = activeMoment
+  async function refineRecommendation(moment, voteIds, fallbackGroups) {
     const momentId = moment.id
-    const selectedOpinions = selectedVotes
+    const selectedOpinions = voteIds
       .map((id) => moment.voteOptions.find((option) => option.id === id)?.label)
       .filter(Boolean)
-    const instantRelated = Array.isArray(moment.related) ? moment.related : []
-    const instantGroups = {
-      same: [],
-      different: [],
-      neutral: instantRelated.map((item) => ({
-        ...item,
-        stance: 'neutral',
-        why: item.why || '先展示已加载的知乎真实内容，正在后台判断与所选观点的关系。',
-      })),
-    }
     const requestToken = {}
     recommendationRequests.current[momentId] = requestToken
-    updateMoment(momentId, (item) => ({ ...item, related: instantGroups.neutral }))
-    setSubmitted(true)
     setRecommendationState((current) => ({
       ...current,
-      [momentId]: { status: 'ready', groups: instantGroups, refining: true },
+      [momentId]: {
+        status: 'ready',
+        groups: current[momentId]?.groups || fallbackGroups,
+        refining: true,
+      },
     }))
-    if (instantRelated.length === 0 && relatedState[momentId]?.status === 'empty') {
-      setRecommendationState((current) => ({
-        ...current,
-        [momentId]: { status: 'ready', groups: instantGroups, refining: false },
-      }))
-      return
-    }
     try {
       const groups = await recommendRelatedContent(moment, selectedOpinions)
       if (recommendationRequests.current[momentId] !== requestToken) return
@@ -371,7 +371,7 @@ export default function Reading() {
       saveDiscussionSpace(
         { ...moment, related: personalized },
         article,
-        selectedVotes,
+        voteIds,
         { classificationStatus: 'ready' },
       )
       updateMoment(momentId, (item) => ({
@@ -395,21 +395,56 @@ export default function Reading() {
     } catch (error) {
       if (recommendationRequests.current[momentId] !== requestToken) return
       saveDiscussionSpace(
-        { ...moment, related: instantGroups.neutral },
+        { ...moment, related: fallbackGroups.neutral || [] },
         article,
-        selectedVotes,
+        voteIds,
         { classificationStatus: 'failed' },
       )
       setRecommendationState((current) => ({
         ...current,
         [momentId]: {
           status: 'ready',
-          groups: current[momentId]?.groups || instantGroups,
+          groups: current[momentId]?.groups || fallbackGroups,
           refining: false,
-          refinementError: `${error.code || 'RECOMMENDATION_FAILED'}：${error.message}`,
+          refinementError: error.message || '精排服务暂时不可用，已保留相关内容。',
         },
       }))
     }
+  }
+
+  async function submitVote() {
+    if (selectedVotes.length === 0) return
+    const moment = activeMoment
+    const momentId = moment.id
+    const instantRelated = Array.isArray(moment.related) ? moment.related : []
+    const instantGroups = {
+      same: [],
+      different: [],
+      neutral: instantRelated.map((item) => ({
+        ...item,
+        stance: 'neutral',
+        why: item.why || '先展示已加载的知乎真实内容，正在后台判断与所选观点的关系。',
+      })),
+    }
+    updateMoment(momentId, (item) => ({ ...item, related: instantGroups.neutral }))
+    setSubmitted(true)
+    setRecommendationState((current) => ({
+      ...current,
+      [momentId]: { status: 'ready', groups: instantGroups, refining: true },
+    }))
+    if (instantRelated.length === 0 && relatedState[momentId]?.status === 'empty') {
+      setRecommendationState((current) => ({
+        ...current,
+        [momentId]: { status: 'ready', groups: instantGroups, refining: false },
+      }))
+      return
+    }
+    await refineRecommendation(moment, selectedVotes, instantGroups)
+  }
+
+  function retryRecommendation() {
+    if (!activeMoment || selectedVotes.length === 0 || activeRecommendation?.refining) return
+    refineRecommendation(activeMoment, selectedVotes, activeRecommendation.groups)
   }
 
   async function openSelectionDiscussion() {
@@ -421,7 +456,9 @@ export default function Reading() {
     setSelectedVotes([])
     setSubmitted(false)
     setSelectionAction(null)
-    window.getSelection()?.removeAllRanges()
+    if (showPersistentSelectionHighlight(action.range)) {
+      window.getSelection()?.removeAllRanges()
+    }
     setRelatedState((current) => ({
       ...current,
       [moment.id]: { status: 'expanding' },
@@ -571,6 +608,9 @@ export default function Reading() {
             <span className="beta">Beta</span>
           </div>
           <p className="pane-sub">这些片段，正在被讨论</p>
+          {analysisMode === 'precomputed' && (
+            <p className="pane-sub" role="status">已加载预先整理的观点</p>
+          )}
           {analysisMode === 'fallback' && (
             <p className="pane-sub" role="status">当前为示例观点，实时分析暂不可用：{analysisError}</p>
           )}
@@ -649,7 +689,6 @@ export default function Reading() {
                       {item.author} · {item.voteup} 赞同
                     </div>
                     {item.quote && <div className="quote">“{item.quote}”</div>}
-                    <div className="why">为什么相关：{item.why}</div>
                   </div>
                 ))}
               </div>}
@@ -710,7 +749,10 @@ export default function Reading() {
                       )}
                       {activeRecommendation.refinementError && (
                         <div className="recommendation-status error">
-                          本次观点精排暂未完成：{activeRecommendation.refinementError}
+                          <span>本次观点精排暂未完成：{activeRecommendation.refinementError}</span>
+                          <button type="button" onClick={retryRecommendation}>
+                            重新精排
+                          </button>
                         </div>
                       )}
                       <RecommendationGroup

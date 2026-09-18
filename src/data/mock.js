@@ -556,7 +556,7 @@ const builtInOfflineMoments = {
 }
 
 export function getMoments(articleId) {
-  // 长文会优先由 AI 从全文生成讨论瞬间；离线时展示对应主题的可交互讨论数据。
+  // 内置长文直接使用预生成的讨论瞬间；动态导入内容仍由 AI 分析。
   return momentsByArticleId[articleId] || builtInOfflineMoments[articleId] || momentsByArticleId.a1
 }
 

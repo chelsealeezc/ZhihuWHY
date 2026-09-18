@@ -212,6 +212,11 @@
   background: #1558b0;
 }
 
+::highlight(selected-discussion-source) {
+  background: #cfe1ff;
+  color: var(--zh-blue-deep);
+}
+
 .article-body p.anchor-active {
   background: var(--zh-blue-soft);
   outline: 1px solid #b7d4ff;
@@ -351,15 +356,6 @@
   color: var(--zh-blue);
   font-weight: 600;
   margin-bottom: 12px;
-}
-
-.selected-source-quote {
-  margin: 0 0 9px;
-  padding-left: 10px;
-  border-left: 3px solid var(--zh-blue);
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.55;
 }
 
 .core-card h3 {
@@ -527,6 +523,26 @@
 .recommendation-status.error {
   background: #fff7ed;
   color: #9a5a12;
+}
+
+.recommendation-status.error span {
+  display: block;
+}
+
+.recommendation-status.error button {
+  margin-top: 10px;
+  padding: 7px 14px;
+  border: 1px solid #c97824;
+  border-radius: 999px;
+  background: #fff;
+  color: #9a5a12;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.recommendation-status.error button:hover {
+  background: #fff3e3;
 }
 
 .recommendation-results {

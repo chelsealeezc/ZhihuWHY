@@ -42,6 +42,8 @@ jobs:
           token="${VERCEL_TOKEN_RAW##*=}"
           token="${token#\"}"
           token="${token%\"}"
+          rm -rf .vercel
+          npx --yes vercel@59.23.0 link --yes --project="$VERCEL_PROJECT_ID" --scope="$VERCEL_ORG_ID" --token="$token"
           npx --yes vercel@59.23.0 pull --yes --environment=preview --token="$token"
           npx --yes vercel@59.23.0 build --token="$token"
           npx --yes vercel@59.23.0 deploy --prebuilt --token="$token"
@@ -68,6 +70,8 @@ jobs:
           token="${VERCEL_TOKEN_RAW##*=}"
           token="${token#\"}"
           token="${token%\"}"
+          rm -rf .vercel
+          npx --yes vercel@59.23.0 link --yes --project="$VERCEL_PROJECT_ID" --scope="$VERCEL_ORG_ID" --token="$token"
           npx --yes vercel@59.23.0 pull --yes --environment=production --token="$token"
           npx --yes vercel@59.23.0 build --prod --token="$token"
           npx --yes vercel@59.23.0 deploy --prebuilt --prod --token="$token"
