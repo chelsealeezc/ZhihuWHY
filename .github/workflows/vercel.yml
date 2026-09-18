@@ -1,0 +1,73 @@
+name: Deploy to Vercel
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vercel-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  VERCEL_TOKEN_RAW: ${{ secrets.VERCEL_TOKEN }}
+  VERCEL_ORG_ID_RAW: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID_RAW: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  preview:
+    name: Preview deployment
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - name: Pull Vercel preview environment
+        run: |
+          export VERCEL_ORG_ID="${VERCEL_ORG_ID_RAW##*=}"
+          export VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID_RAW##*=}"
+          token="${VERCEL_TOKEN_RAW##*=}"
+          token="${token#\"}"
+          token="${token%\"}"
+          npx --yes vercel@59.23.0 pull --yes --environment=preview --token="$token"
+          npx --yes vercel@59.23.0 build --token="$token"
+          npx --yes vercel@59.23.0 deploy --prebuilt --token="$token"
+
+  production:
+    name: Production deployment
+    if: >-
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - name: Deploy Vercel production environment
+        run: |
+          export VERCEL_ORG_ID="${VERCEL_ORG_ID_RAW##*=}"
+          export VERCEL_PROJECT_ID="${VERCEL_PROJECT_ID_RAW##*=}"
+          token="${VERCEL_TOKEN_RAW##*=}"
+          token="${token#\"}"
+          token="${token%\"}"
+          npx --yes vercel@59.23.0 pull --yes --environment=production --token="$token"
+          npx --yes vercel@59.23.0 build --prod --token="$token"
+          npx --yes vercel@59.23.0 deploy --prebuilt --prod --token="$token"

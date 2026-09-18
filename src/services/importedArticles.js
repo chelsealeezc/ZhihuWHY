@@ -1,5 +1,13 @@
 const STORAGE_KEY = 'zhihuwhy:imported-articles:v1'
 
+export function isLikelyTruncatedText(value) {
+  const text = String(value || '').trim()
+  if (!text) return false
+  // Zhihu summaries may use either three dots or one of the common CJK
+  // ellipsis glyphs. Closing quote/bracket characters can follow the marker.
+  return /(?:\.{3,}|…+|⋯+)[\s\u00a0]*[”"'’）)】\]》〉]*$/.test(text)
+}
+
 function readStore() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}
@@ -36,6 +44,7 @@ function splitParagraphs(text) {
 
 function toArticle(item) {
   const id = stableId(item.url || item.id || item.title)
+  const sourceExcerpt = String(item.excerpt || '').trim()
   return {
     id,
     type: item.type || 'answer',
@@ -49,7 +58,8 @@ function toArticle(item) {
     },
     voteup: Number(item.voteup) || 0,
     comments: Number(item.comments) || 0,
-    paragraphs: splitParagraphs(item.excerpt),
+    paragraphs: splitParagraphs(sourceExcerpt),
+    sourceIncomplete: isLikelyTruncatedText(sourceExcerpt),
     importedAt: Date.now(),
   }
 }
@@ -63,5 +73,10 @@ export function saveImportedArticles(items) {
 }
 
 export function getImportedArticle(id) {
-  return readStore()[id] || null
+  const article = readStore()[id] || null
+  if (!article || typeof article.sourceIncomplete === 'boolean') return article
+  const storedText = Array.isArray(article.paragraphs)
+    ? article.paragraphs.map((paragraph) => paragraph.text).join(' ')
+    : ''
+  return { ...article, sourceIncomplete: isLikelyTruncatedText(storedText) }
 }

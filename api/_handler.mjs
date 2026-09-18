@@ -6,7 +6,7 @@ import {
   logout,
   startAuth,
 } from '../server/oauth.mjs'
-import { analyzeArticle, chatWithPersona, classifyRelatedContent } from '../server/ai.mjs'
+import { analyzeArticle, chatWithPersona, classifyRelatedContent, expandSelection } from '../server/ai.mjs'
 import { searchZhihu } from '../server/zhihu.mjs'
 
 function json(response, status, payload) {
@@ -96,6 +96,12 @@ export async function dispatch(route, request, response) {
       const body = await readJson(request)
       const moments = await analyzeArticle(body.article)
       return json(response, 200, { ok: true, moments })
+    }
+    if (route === 'discussions/selection') {
+      if (request.method !== 'POST') return methodNotAllowed(response, 'POST')
+      const body = await readJson(request)
+      const expansion = await expandSelection(body)
+      return json(response, 200, { ok: true, ...expansion })
     }
     if (route === 'discussions/persona-chat') {
       if (request.method !== 'POST') return methodNotAllowed(response, 'POST')
