@@ -124,11 +124,22 @@ test('selected opinion ordering produces the same recommendation key', () => {
   )
 })
 
-test('candidate changes produce a different recommendation key', () => {
+test('candidate changes reuse the same recommendation key', () => {
   const changed = [...candidates.slice(0, 2), { id: 'D' }]
-  assert.notEqual(
+  assert.equal(
     recommendationCacheKey(moment, ['A'], candidates),
     recommendationCacheKey(moment, ['A'], changed),
+  )
+})
+
+test('question or selected opinion changes produce a different recommendation key', () => {
+  assert.notEqual(
+    recommendationCacheKey(moment, ['A'], candidates),
+    recommendationCacheKey({ ...moment, coreQuestion: '问题已变更' }, ['A'], candidates),
+  )
+  assert.notEqual(
+    recommendationCacheKey(moment, ['A'], candidates),
+    recommendationCacheKey(moment, ['B'], candidates),
   )
 })
 

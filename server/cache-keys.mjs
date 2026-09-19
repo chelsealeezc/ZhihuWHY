@@ -21,14 +21,10 @@ export function normalizeSelectedOpinions(selectedOpinions) {
     .filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'))
 }
 
-export function recommendationCacheKey(moment, selectedOpinions, candidates) {
-  const candidateFingerprint = (Array.isArray(candidates) ? candidates : []).map((candidate) =>
-    clean(candidate?.id || candidate?.url),
-  )
-  return `recommendation:v2:${digest({
+export function recommendationCacheKey(moment, selectedOpinions) {
+  return `recommendation:v3:${digest({
     coreQuestion: clean(moment?.coreQuestion),
     searchQuery: clean(moment?.searchQuery),
     selectedOpinions: normalizeSelectedOpinions(selectedOpinions),
-    candidates: candidateFingerprint,
   })}`
 }
