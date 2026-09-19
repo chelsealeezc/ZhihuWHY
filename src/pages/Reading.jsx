@@ -392,6 +392,7 @@ export default function Reading() {
       [momentId]: {
         status: 'ready',
         groups: current[momentId]?.groups || fallbackGroups,
+        pendingItems: current[momentId]?.pendingItems || [],
         refining: true,
       },
     }))
@@ -431,7 +432,7 @@ export default function Reading() {
       }))
       setRecommendationState((current) => ({
         ...current,
-        [momentId]: { status: 'ready', groups: mappedGroups, refining: false, supplementing: true },
+        [momentId]: { status: 'ready', groups: mappedGroups, pendingItems: [], refining: false, supplementing: true },
       }))
 
       const prefetched = await (opposingPrefetchRequests.current[momentId] || Promise.resolve([]))
@@ -482,7 +483,7 @@ export default function Reading() {
         }))
         setRecommendationState((current) => ({
           ...current,
-          [momentId]: { status: 'ready', groups: supplementedGroups, refining: false, supplementing: false },
+          [momentId]: { status: 'ready', groups: supplementedGroups, pendingItems: [], refining: false, supplementing: false },
         }))
       } catch {
         if (recommendationRequests.current[momentId] !== requestToken) return
@@ -494,24 +495,19 @@ export default function Reading() {
     } catch (error) {
       if (recommendationRequests.current[momentId] !== requestToken) return
       saveDiscussionSpace(
-        { ...moment, related: [] },
+        moment,
         article,
         voteIds,
         { classificationStatus: 'failed' },
       )
-      updateMoment(momentId, (item) => ({
-        ...item,
-        related: [],
-        relatedCount: 0,
-        participants: 0,
-      }))
       setRecommendationState((current) => ({
         ...current,
         [momentId]: {
           status: 'ready',
           groups: { same: [], different: [], neutral: [] },
+          pendingItems: Array.isArray(moment.related) ? moment.related : [],
           refining: false,
-          refinementError: error.message || '精排服务暂时不可用，未展示立场不明确的内容。',
+          refinementError: error.message || '精排服务暂时不可用，已保留相关内容。',
         },
       }))
     }
@@ -527,16 +523,15 @@ export default function Reading() {
       different: [],
       neutral: [],
     }
-    updateMoment(momentId, (item) => ({ ...item, related: [] }))
     setSubmitted(true)
     setRecommendationState((current) => ({
       ...current,
-      [momentId]: { status: 'ready', groups: instantGroups, refining: true },
+      [momentId]: { status: 'ready', groups: instantGroups, pendingItems: instantRelated, refining: true },
     }))
     if (instantRelated.length === 0 && relatedState[momentId]?.status === 'empty') {
       setRecommendationState((current) => ({
         ...current,
-        [momentId]: { status: 'ready', groups: instantGroups, refining: false },
+        [momentId]: { status: 'ready', groups: instantGroups, pendingItems: [], refining: false },
       }))
       return
     }
@@ -865,24 +860,35 @@ export default function Reading() {
                       )}
                       {activeRecommendation.refinementError && (
                         <div className="recommendation-status error">
-                          <span>本次观点精排暂未完成：{activeRecommendation.refinementError}</span>
+                          <span>观点分类暂未完成，先保留相关内容：{activeRecommendation.refinementError}</span>
                           <button type="button" onClick={retryRecommendation}>
                             重新精排
                           </button>
                         </div>
                       )}
-                      <RecommendationGroup
-                        title="和你相近的观点"
-                        tone="same"
-                        items={activeRecommendation.groups.same || []}
-                        refining={activeRecommendation.refining}
-                      />
-                      <RecommendationGroup
-                        title="与你不同的观点"
-                        tone="different"
-                        items={activeRecommendation.groups.different || []}
-                        refining={activeRecommendation.refining}
-                      />
+                      {(activeRecommendation.refining || activeRecommendation.refinementError)
+                        && (activeRecommendation.pendingItems || []).length > 0 && (
+                          <RecommendationGroup
+                            title="与这个问题相关的内容"
+                            tone="neutral"
+                            items={activeRecommendation.pendingItems}
+                            refining
+                          />
+                      )}
+                      {!activeRecommendation.refining && !activeRecommendation.refinementError && (
+                        <>
+                          <RecommendationGroup
+                            title="和你相近的观点"
+                            tone="same"
+                            items={activeRecommendation.groups.same || []}
+                          />
+                          <RecommendationGroup
+                            title="与你不同的观点"
+                            tone="different"
+                            items={activeRecommendation.groups.different || []}
+                          />
+                        </>
+                      )}
                     </div>
                   )}
 
