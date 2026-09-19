@@ -2,7 +2,8 @@ import { aiConfig } from './config.mjs'
 
 const AI_TIMEOUT_MS = 90_000
 // 留出足够时间让函数返回结构化错误，避免部署平台先切断连接。
-const RECOMMENDATION_AI_TIMEOUT_MS = 17_000
+// Vercel 该函数最长运行 30 秒；给模型 26 秒，并为响应序列化预留余量。
+const RECOMMENDATION_AI_TIMEOUT_MS = 26_000
 const SELECTION_TIMEOUT_MS = 30_000
 
 function requireAiConfig() {
@@ -239,20 +240,21 @@ export async function classifyRelatedContent(moment, selectedOpinions, candidate
       body: JSON.stringify({
         model: aiConfig.recommendModel,
         input: prompt,
-        max_output_tokens: 300,
+        reasoning: { effort: 'low' },
+        max_output_tokens: 220,
       }),
       signal: AbortSignal.timeout(RECOMMENDATION_AI_TIMEOUT_MS),
     })
   } catch (error) {
     const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError'
-    throw Object.assign(new Error(timedOut ? '立场分类超过 17 秒' : 'AI 立场分类服务暂时无法连接'), {
+    throw Object.assign(new Error(timedOut ? '立场分类超过 26 秒' : 'AI 立场分类服务暂时无法连接'), {
       code: timedOut ? 'AI_TIMEOUT' : 'AI_REQUEST_FAILED',
       status: timedOut ? 504 : 502,
     })
   }
   const payload = await response.json().catch((error) => {
     const timedOut = error?.name === 'TimeoutError' || error?.name === 'AbortError'
-    throw Object.assign(new Error(timedOut ? 'AI 响应超过 17 秒' : 'AI 响应不是有效 JSON'), {
+    throw Object.assign(new Error(timedOut ? 'AI 响应超过 26 秒' : 'AI 响应不是有效 JSON'), {
       code: timedOut ? 'AI_TIMEOUT' : 'AI_OUTPUT_INVALID',
       status: timedOut ? 504 : 502,
     })

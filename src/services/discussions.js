@@ -4,8 +4,8 @@ const ANALYSIS_CACHE_PREFIX = 'zhihuwhy:analysis:v1:'
 const ANALYSIS_CACHE_TTL = 24 * 60 * 60 * 1000
 // 客户端兜底超时：保证 loading 状态一定会结束，不会永久卡住界面。
 const SEARCH_TIMEOUT_MS = 20_000
-// 给模型和部署平台冷启动留出余量；重试仅发生在瞬时网络或服务错误时。
-const RECOMMEND_ATTEMPT_TIMEOUT_MS = 20_000
+// 服务端最多给模型 26 秒；前端略晚于服务端结束，避免提前中断有效响应。
+const RECOMMEND_ATTEMPT_TIMEOUT_MS = 29_000
 const RECOMMEND_RETRY_DELAY_MS = 400
 const SELECTION_TIMEOUT_MS = 30_000
 
@@ -58,7 +58,9 @@ function isRetryableRecommendationError(error) {
     return true
   }
   if (error?.code === 'SERVER_CONFIG_MISSING') return false
-  if (['AI_TIMEOUT', 'AI_REQUEST_FAILED', 'INTERNAL_ERROR'].includes(error?.code)) return true
+  // 模型超时后重复同一个请求只会让用户再等一轮；仅重试瞬时连接故障。
+  if (error?.code === 'AI_TIMEOUT') return false
+  if (['AI_REQUEST_FAILED', 'INTERNAL_ERROR'].includes(error?.code)) return true
   return Number(error?.status) >= 500
 }
 

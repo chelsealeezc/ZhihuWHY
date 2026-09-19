@@ -230,7 +230,8 @@ test('recommendation output does not generate or preserve classification reasons
     assert.equal(groups.same[0].viewpoint, undefined)
     assert.equal(groups.same[0].claim, '即时反馈能降低启动难度。')
     assert.equal(requestBody.model, 'gpt-5.6-luna')
-    assert.equal(requestBody.max_output_tokens, 300)
+    assert.equal(requestBody.max_output_tokens, 220)
+    assert.deepEqual(requestBody.reasoning, { effort: 'low' })
   } finally { globalThis.fetch = old }
 })
 
