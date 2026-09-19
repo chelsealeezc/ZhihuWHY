@@ -397,7 +397,6 @@ export default function Reading() {
       const personalized = [
         ...(mappedGroups.same || []),
         ...(mappedGroups.different || []),
-        ...(mappedGroups.neutral || []),
       ]
       saveDiscussionSpace(
         { ...moment, related: personalized },
@@ -426,18 +425,24 @@ export default function Reading() {
     } catch (error) {
       if (recommendationRequests.current[momentId] !== requestToken) return
       saveDiscussionSpace(
-        { ...moment, related: fallbackGroups.neutral || [] },
+        { ...moment, related: [] },
         article,
         voteIds,
         { classificationStatus: 'failed' },
       )
+      updateMoment(momentId, (item) => ({
+        ...item,
+        related: [],
+        relatedCount: 0,
+        participants: 0,
+      }))
       setRecommendationState((current) => ({
         ...current,
         [momentId]: {
           status: 'ready',
-          groups: current[momentId]?.groups || fallbackGroups,
+          groups: { same: [], different: [], neutral: [] },
           refining: false,
-          refinementError: error.message || '精排服务暂时不可用，已保留相关内容。',
+          refinementError: error.message || '精排服务暂时不可用，未展示立场不明确的内容。',
         },
       }))
     }
@@ -451,13 +456,9 @@ export default function Reading() {
     const instantGroups = {
       same: [],
       different: [],
-      neutral: instantRelated.map((item) => ({
-        ...item,
-        stance: 'neutral',
-        why: item.why || '先展示已加载的知乎真实内容，正在后台判断与所选观点的关系。',
-      })),
+      neutral: [],
     }
-    updateMoment(momentId, (item) => ({ ...item, related: instantGroups.neutral }))
+    updateMoment(momentId, (item) => ({ ...item, related: [] }))
     setSubmitted(true)
     setRecommendationState((current) => ({
       ...current,
@@ -808,14 +809,6 @@ export default function Reading() {
                         items={activeRecommendation.groups.different || []}
                         refining={activeRecommendation.refining}
                       />
-                      {(activeRecommendation.groups.neutral || []).length > 0 && (
-                        <RecommendationGroup
-                          title={activeRecommendation.refining ? '相关表达 · 正在判断立场…' : '相关但立场尚不明确'}
-                          tone="neutral"
-                          items={activeRecommendation.groups.neutral}
-                          refining={activeRecommendation.refining}
-                        />
-                      )}
                     </div>
                   )}
 
