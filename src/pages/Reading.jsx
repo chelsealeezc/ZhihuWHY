@@ -103,6 +103,12 @@ function compactViewpoint(value, maxLength = 40) {
   return `${text.slice(0, Math.max(1, maxLength - 2)).replace(/[，,;；。！？!?]+$/, '')}……`
 }
 
+function compactQuestion(value, maxLength = 25) {
+  const text = String(value || '').replace(/\s+/g, ' ').trim()
+  if (Array.from(text).length <= maxLength) return text
+  return `${Array.from(text).slice(0, maxLength - 1).join('')}…`
+}
+
 function prioritizeDistinctTitles(items, visibleCount = 4) {
   const seenTitles = new Set()
   const distinct = []
@@ -643,9 +649,6 @@ export default function Reading() {
             <span className="beta">Beta</span>
           </div>
           <p className="pane-sub">这些片段，正在被讨论</p>
-          {analysisMode === 'precomputed' && (
-            <p className="pane-sub" role="status">已加载预先整理的观点</p>
-          )}
           {analysisMode === 'fallback' && (
             <p className="pane-sub" role="status">当前为示例观点，实时分析暂不可用：{analysisError}</p>
           )}
@@ -669,14 +672,14 @@ export default function Reading() {
                     onClick={() => setActiveMomentId(m.id)}
                   >
                     <span className="idx">{String(m.index).padStart(2, '0')}</span>
-                    <span className="label">{m.coreQuestion || m.title}</span>
+                    <span className="label">{compactQuestion(m.coreQuestion || m.title)}</span>
                   </button>
                 ))}
               </div>
 
               <div className="core-card">
                 <div className="tag">{activeMoment.source === 'selection' ? '你选中的原文' : '答主的核心看法'}</div>
-                <h3>{activeMoment.coreQuestion}</h3>
+                <h3>{compactQuestion(activeMoment.coreQuestion)}</h3>
                 <p>{activeMoment.summary}</p>
                 <div className="core-meta">
                   <span>{activeMoment.relatedCount} 篇相关内容</span>
@@ -765,7 +768,7 @@ export default function Reading() {
                 <div className="vote-result">
                   <div className="joined-question">
                     <span>本次讨论</span>
-                    <h4>{activeMoment.coreQuestion}</h4>
+                    <h4>{compactQuestion(activeMoment.coreQuestion)}</h4>
                   </div>
                   <div className="ok">你已加入讨论</div>
                   <div className="choice">你选择了：{primaryLabel}</div>
