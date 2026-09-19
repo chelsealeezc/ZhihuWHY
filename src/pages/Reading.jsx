@@ -403,12 +403,16 @@ export default function Reading() {
       const mappedGroups = Object.fromEntries(
         Object.entries(groups).map(([stance, items]) => [
           stance,
-          items.map((item) => mapRelatedItem(item, moment)),
+          items.map((item) => {
+            const mapped = mapRelatedItem(item, moment)
+            return stance === 'neutral' ? { ...mapped, claim: '' } : mapped
+          }),
         ]),
       )
       const personalized = [
         ...(mappedGroups.same || []),
         ...(mappedGroups.different || []),
+        ...(mappedGroups.neutral || []),
       ]
       saveDiscussionSpace(
         { ...moment, related: personalized },
@@ -462,12 +466,16 @@ export default function Reading() {
         const supplementedGroups = Object.fromEntries(
           Object.entries(supplemented).map(([stance, items]) => [
             stance,
-            items.map((item) => mapRelatedItem(item, moment)),
+            items.map((item) => {
+              const mapped = mapRelatedItem(item, moment)
+              return stance === 'neutral' ? { ...mapped, claim: '' } : mapped
+            }),
           ]),
         )
         const supplementedPersonalized = [
           ...(supplementedGroups.same || []),
           ...(supplementedGroups.different || []),
+          ...(supplementedGroups.neutral || []),
         ]
         saveDiscussionSpace(
           { ...moment, related: supplementedPersonalized },
@@ -887,6 +895,13 @@ export default function Reading() {
                             tone="different"
                             items={activeRecommendation.groups.different || []}
                           />
+                          {(activeRecommendation.groups.neutral || []).length > 0 && (
+                            <RecommendationGroup
+                              title="更多相关讨论"
+                              tone="neutral"
+                              items={activeRecommendation.groups.neutral}
+                            />
+                          )}
                         </>
                       )}
                     </div>
