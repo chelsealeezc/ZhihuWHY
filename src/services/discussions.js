@@ -4,8 +4,8 @@ const ANALYSIS_CACHE_PREFIX = 'zhihuwhy:analysis:v1:'
 const ANALYSIS_CACHE_TTL = 24 * 60 * 60 * 1000
 // 客户端兜底超时：保证 loading 状态一定会结束，不会永久卡住界面。
 const SEARCH_TIMEOUT_MS = 20_000
-// 单次精排最多等待 12.5 秒；加上一次退避重试，整条链路会在约 26 秒内结束。
-const RECOMMEND_ATTEMPT_TIMEOUT_MS = 12_500
+// 给模型和部署平台冷启动留出余量；重试仅发生在瞬时网络或服务错误时。
+const RECOMMEND_ATTEMPT_TIMEOUT_MS = 20_000
 const RECOMMEND_RETRY_DELAY_MS = 400
 const SELECTION_TIMEOUT_MS = 30_000
 
@@ -143,14 +143,15 @@ export async function expandSelectedText(input) {
   return readApiResponse(response)
 }
 
-export async function recommendRelatedContent(moment, selectedOpinions) {
+export async function recommendRelatedContent(moment, selectedOpinions, candidates = moment.related) {
   const body = JSON.stringify({
     moment: {
       coreQuestion: moment.coreQuestion,
       searchQuery: moment.searchQuery || moment.coreQuestion,
+      voteOptions: moment.voteOptions,
     },
     selectedOpinions,
-    candidates: Array.isArray(moment.related) ? moment.related.slice(0, 10) : [],
+    candidates: Array.isArray(candidates) ? candidates.slice(0, 10) : [],
   })
 
   for (let attempt = 0; attempt < 2; attempt++) {

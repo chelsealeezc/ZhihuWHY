@@ -213,6 +213,7 @@ export default function Reading() {
   const articleBodyRef = useRef(null)
   const paragraphRefs = useRef({})
   const recommendationRequests = useRef({})
+  const opposingPrefetchRequests = useRef({})
 
   const activeMoment = useMemo(
     () => [selectionMoment, ...moments].find((m) => m?.id === activeMomentId) || moments[0],
@@ -291,6 +292,7 @@ export default function Reading() {
     setRelatedState({})
     setRecommendationState({})
     recommendationRequests.current = {}
+    opposingPrefetchRequests.current = {}
     let cancelled = false
 
     const analysis = articleAnalysisRequest(article, fallbackMoments, analyzeArticle)
@@ -354,6 +356,14 @@ export default function Reading() {
       })
   }, [activeMoment, relatedState])
 
+  useEffect(() => {
+    if (!activeMoment?.coreQuestion || activeMoment.searchPending || opposingPrefetchRequests.current[activeMoment.id]) return
+    const query = `${activeMoment.coreQuestion} 不同观点 反对 争议`
+    opposingPrefetchRequests.current[activeMoment.id] = searchRelatedContent(query, 8, activeMoment.coreQuestion)
+      .then((items) => items.map((item) => mapRelatedItem(item, activeMoment)))
+      .catch(() => [])
+  }, [activeMoment])
+
   function locateOriginal() {
     const id = activeMoment.anchorParagraphId || fallbackMoments[activeMoment.index - 1]?.anchorParagraphId
     if (!id) return
@@ -386,7 +396,8 @@ export default function Reading() {
       },
     }))
     try {
-      const groups = await recommendRelatedContent(moment, selectedOpinions)
+      const initialCandidates = Array.isArray(moment.related) ? moment.related : []
+      const groups = await recommendRelatedContent(moment, selectedOpinions, initialCandidates)
       if (recommendationRequests.current[momentId] !== requestToken) return
       const mappedGroups = Object.fromEntries(
         Object.entries(groups).map(([stance, items]) => [
@@ -420,8 +431,66 @@ export default function Reading() {
       }))
       setRecommendationState((current) => ({
         ...current,
-        [momentId]: { status: 'ready', groups: mappedGroups, refining: false },
+        [momentId]: { status: 'ready', groups: mappedGroups, refining: false, supplementing: true },
       }))
+
+      const prefetched = await (opposingPrefetchRequests.current[momentId] || Promise.resolve([]))
+      if (recommendationRequests.current[momentId] !== requestToken) return
+      const seen = new Set(initialCandidates.map((item) => item.id || item.url || item.title))
+      const extraCandidates = prefetched.filter((item) => {
+        const key = item.id || item.url || item.title
+        if (!key || seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      if (extraCandidates.length === 0) {
+        setRecommendationState((current) => ({
+          ...current,
+          [momentId]: { ...current[momentId], supplementing: false },
+        }))
+        return
+      }
+
+      try {
+        const supplemented = await recommendRelatedContent(
+          moment,
+          selectedOpinions,
+          [...initialCandidates, ...extraCandidates].slice(0, 10),
+        )
+        if (recommendationRequests.current[momentId] !== requestToken) return
+        const supplementedGroups = Object.fromEntries(
+          Object.entries(supplemented).map(([stance, items]) => [
+            stance,
+            items.map((item) => mapRelatedItem(item, moment)),
+          ]),
+        )
+        const supplementedPersonalized = [
+          ...(supplementedGroups.same || []),
+          ...(supplementedGroups.different || []),
+        ]
+        saveDiscussionSpace(
+          { ...moment, related: supplementedPersonalized },
+          article,
+          voteIds,
+          { classificationStatus: 'ready' },
+        )
+        updateMoment(momentId, (item) => ({
+          ...item,
+          related: supplementedPersonalized,
+          relatedCount: supplementedPersonalized.length,
+          participants: countRelatedAuthors(supplementedPersonalized),
+        }))
+        setRecommendationState((current) => ({
+          ...current,
+          [momentId]: { status: 'ready', groups: supplementedGroups, refining: false, supplementing: false },
+        }))
+      } catch {
+        if (recommendationRequests.current[momentId] !== requestToken) return
+        setRecommendationState((current) => ({
+          ...current,
+          [momentId]: { ...current[momentId], supplementing: false },
+        }))
+      }
     } catch (error) {
       if (recommendationRequests.current[momentId] !== requestToken) return
       saveDiscussionSpace(
@@ -786,7 +855,12 @@ export default function Reading() {
                     <div className="recommendation-results">
                       {activeRecommendation.refining && (
                         <div className="recommendation-status">
-                          已先展示相关内容，正在后台优化相近与不同观点…
+                          正在完成首轮观点精排…
+                        </div>
+                      )}
+                      {activeRecommendation.supplementing && (
+                        <div className="recommendation-status">
+                          首轮精排已完成，正在后台补充不同观点…
                         </div>
                       )}
                       {activeRecommendation.refinementError && (
