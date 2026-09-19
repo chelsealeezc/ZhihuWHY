@@ -9,7 +9,7 @@ const {
   isLikelyTruncatedText,
   saveImportedArticles,
 } = await import('../src/services/importedArticles.js')
-const { classifyRelatedContent, expandSelection } = await import('../server/ai.mjs')
+const { analyzeArticle, classifyRelatedContent, expandSelection } = await import('../server/ai.mjs')
 const { searchZhihu } = await import('../server/zhihu.mjs')
 const { dispatch } = await import('../api/_handler.mjs')
 const { articleAnalysisRequest } = await import('../src/services/articleAnalysis.js')
@@ -296,6 +296,45 @@ test('invalid selection model output is rejected', async () => {
   globalThis.fetch = async () => ({ ok: true, json: async () => ({ output_text: '{"searchQuery":"反馈"}' }) })
   try {
     await assert.rejects(expandSelection({ selectedText: '没有反馈时为什么很难坚持？' }), { code: 'AI_OUTPUT_INVALID' })
+  } finally { globalThis.fetch = old }
+})
+
+test('selection questions longer than 25 characters are rejected instead of truncated', async () => {
+  const old = globalThis.fetch
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({ output_text: JSON.stringify({
+      coreQuestion: '这是一个明显超过二十五个字并且不应该在界面层被截断的讨论问题吗？',
+      searchQuery: '反馈 行动',
+      summary: '测试长度约束。',
+    }) }),
+  })
+  try {
+    await assert.rejects(
+      expandSelection({ selectedText: '没有反馈时为什么很难继续坚持行动？' }),
+      { code: 'AI_OUTPUT_INVALID' },
+    )
+  } finally { globalThis.fetch = old }
+})
+
+test('article analysis rejects focus questions longer than 25 characters', async () => {
+  const old = globalThis.fetch
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({ output_text: JSON.stringify({ moments: [1, 2, 3].map((index) => ({
+      title: `问题${index}`,
+      coreQuestion: '这是一个明显超过二十五个字并且不应该在界面层被截断的讨论问题吗？',
+      summary: '测试长度约束。',
+      searchQuery: '反馈 行动',
+      anchorParagraphId: 'p1',
+      voteOptions: ['赞同', '反对', '视情况而定'],
+    })) }) }),
+  })
+  try {
+    await assert.rejects(
+      analyzeArticle({ title: '测试文章', paragraphs: [{ id: 'p1', text: '用于测试的文章段落。' }] }),
+      { code: 'AI_OUTPUT_INVALID' },
+    )
   } finally { globalThis.fetch = old }
 })
 
